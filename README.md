@@ -2,5 +2,5 @@
 Converting Signor pathways to GO-CAM
 
 ## Dependencies
-gocamgen
-ontobio
+[gocamgen](https://github.com/dustine32/gocamgen) and 
+[ontobio](https://github.com/biolink/ontobio)

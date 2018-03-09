@@ -3,6 +3,7 @@ from gocamgen.gocamgen import GoCamModel
 from signor_complex import SignorComplexFactory
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
+from rdflib.namespace import Namespace, OWL
 from prefixcommons.curie_util import expand_uri
 
 ro = OboRO()
@@ -168,10 +169,23 @@ class PathwayConnectionSet():
             if connection.equals(pathway_connection, check_ref=check_ref):
                 return connection
 
+    def find_other_regulated_activity(self, id_b):
+        regulated_pcs = find_by_id_a(self.connections, id_b)
+        filtered_reg_pcs = []
+        for pc in regulated_pcs:
+            if pc.mechanism["term"] != "GO:0003674":
+                filtered_reg_pcs.append(pc)
+            else:
+                print("This guy's an MF!")
+        if len(filtered_reg_pcs) > 0:
+            return filtered_reg_pcs[0]
+
 def find_by_id_a(pc_list, id):
+    pcs = []
     for pc in pc_list:
         if pc.id_a == id:
-            return pc
+            pcs.append(pc)
+    return pcs
 
 def model_contains_statement(model, subject_uri, rel, object_id):
     for uri in model.uri_list_for_individual(object_id):
@@ -187,6 +201,21 @@ def find_statement_axiom(model, triple):
     found_triples = model.writer.writer.graph.triples(triple)
     for found_one in found_triples:
         return found_one
+
+def test_label_finding(model):
+    # target = "UniProtKB:P84022"  # SMAD3
+    target = "UniProtKB:P01106"  # MYC
+    axiom_counter = 1
+    for axiom in model.axioms_for_source(target, OWL.annotatedTarget):
+        print("Axiom " + str(axiom_counter))
+        for t in model.writer.writer.graph.triples((axiom, None, None)):    # t=(axiom,property,ind)
+            labels = model.individual_label_for_uri(t[2])
+            if len(labels) > 0:
+                print(t[2])
+                print(t[1])
+                print(labels)
+        axiom_counter += 1
+
 
 model = GoCamModel("test.ttl")
 p_connections = PathwayConnectionSet()
@@ -230,8 +259,7 @@ with open("SIGNOR-G2-M_trans_02_03_18.tsv", "r") as f:
             [line["PMID"]],
             linenum
             )
-        
-        # pc.individuals[pc.mechanism["term"]] = model.declare_individual(pc.mechanism["term"]) ### TODO Why do I have to declare this here?
+
         if not (pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR")):
             p_connections.append(pc)
 
@@ -244,14 +272,13 @@ for pc in p_connections.connections:
     if pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR"):
         # for now to see how model first looks - skip complexes
         continue
-    regulated_activity_pc = find_by_id_a(p_connections.connections, pc.id_b)
+    regulated_activity_pc = p_connections.find_other_regulated_activity(pc.id_b)  # find_by_id_a(p_connections.connections, pc.id_b) - regulated_activity_pc.mechanism["term"]
     if regulated_activity_pc is not None:
         regulated_activity_term = regulated_activity_pc.mechanism["term"]
         # regulated_activity_term_uri = regulated_activity_pc.individuals[regulated_activity_pc.mechanism["term"]]
         regulated_activity_term_uri = regulated_activity_pc.mechanism["uri"]
     else:
         regulated_activity_term = "GO:0003674"
-        # regulated_activity_term_uri = model.declare_individual(regulated_activity_term) ### TODO Why do I have to declare this here?
         regulated_activity_term_uri = None
     connection_clone = pc.clone()
     connection_clone.regulated_activity["term"] = regulated_activity_term
@@ -274,12 +301,19 @@ for pc in p_connections.connections:
         # if pc.id_a == "Q13315" and pc.id_b == "P38398":
         #     print("Dang " + pc.pmid[0])
         model = pc.declare_entities(model)
-        enabled_by_stmt_a = model.writer.emit(pc.individuals[pc.mechanism["term"]], ENABLED_BY, pc.individuals[pc.full_id_a()])
-        axiom_a = model.add_axiom(enabled_by_stmt_a)
-        # enabled_by_stmt_b = model.writer.emit(model.individuals[pc.regulated_activity_term], ENABLED_BY, model.individuals[pc.full_id_b()])
-        enabled_by_stmt_b = model.writer.emit(pc.individuals[pc.regulated_activity["term"]], ENABLED_BY, pc.individuals[pc.full_id_b()])
-        axiom_b = model.add_axiom(enabled_by_stmt_b)
-        
+
+        enabled_by_stmt_a_triple = (pc.individuals[pc.mechanism["term"]], ENABLED_BY, pc.individuals[pc.full_id_a()])
+        if enabled_by_stmt_a_triple in model.writer.writer.graph:
+            enabled_by_stmt_a = model.writer.writer.graph.triples(enabled_by_stmt_a_triple)[0]
+        else:
+            enabled_by_stmt_a = model.writer.emit(enabled_by_stmt_a_triple[0], enabled_by_stmt_a_triple[1], enabled_by_stmt_a_triple[2])
+            axiom_a = model.add_axiom(enabled_by_stmt_a)
+        enabled_by_stmt_b_triple = (pc.individuals[pc.regulated_activity["term"]], ENABLED_BY, pc.individuals[pc.full_id_b()])
+        if enabled_by_stmt_b_triple in model.writer.writer.graph:
+            enabled_by_stmt_b = model.writer.writer.graph.triples(enabled_by_stmt_b_triple)[0]
+        else:
+            enabled_by_stmt_b = model.writer.emit(enabled_by_stmt_b_triple[0], enabled_by_stmt_b_triple[1], enabled_by_stmt_b_triple[2])
+            axiom_b = model.add_axiom(enabled_by_stmt_b)
 
         # Connect the two activities
         # source_id = model.individuals[pc.mechanism_go_term]
@@ -307,3 +341,6 @@ with open(model.filepath, 'wb') as f:
     model.writer.writer.serialize(destination=f)
 
 print(skipped_count)
+
+if __name__ == '__main__':
+    print("hey")

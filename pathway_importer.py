@@ -85,16 +85,17 @@ class PathwayConnection():
             uri_a = model.declare_individual(self.full_id_a())
             # model.individuals[self.full_id_a()] = uri_a
             self.individuals[self.full_id_a()] = uri_a
-        # if self.full_id_b() not in model.individuals:
-        if self.full_id_b() not in self.individuals:
+        if self.full_id_b() not in self.individuals and self.regulated_activity["uri"] is None:
             uri_b = model.declare_individual(self.full_id_b())
             # model.individuals[self.full_id_b()] = uri_b
             self.individuals[self.full_id_b()] = uri_b
+            self.regulated_activity["uri"] = model.declare_individual(regulated_activity_term)
+        else:
+            for t in model.writer.writer.graph.triples((self.regulated_activity["uri"],ENABLED_BY,None)):
+                self.individuals[self.full_id_b()] = t[2]
 
         self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
         self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
-        if self.regulated_activity["uri"] is None:
-            self.regulated_activity["uri"] = model.declare_individual(regulated_activity_term)
         self.individuals[self.regulated_activity["term"]] = self.regulated_activity["uri"]
 
 
@@ -175,8 +176,6 @@ class PathwayConnectionSet():
         for pc in regulated_pcs:
             if pc.mechanism["term"] != "GO:0003674":
                 filtered_reg_pcs.append(pc)
-            else:
-                print("This guy's an MF!")
         if len(filtered_reg_pcs) > 0:
             return filtered_reg_pcs[0]
 
@@ -302,15 +301,15 @@ for pc in p_connections.connections:
         #     print("Dang " + pc.pmid[0])
         model = pc.declare_entities(model)
 
-        enabled_by_stmt_a_triple = (pc.individuals[pc.mechanism["term"]], ENABLED_BY, pc.individuals[pc.full_id_a()])
+        enabled_by_stmt_a_triple = (pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
         if enabled_by_stmt_a_triple in model.writer.writer.graph:
-            enabled_by_stmt_a = model.writer.writer.graph.triples(enabled_by_stmt_a_triple)[0]
+            enabled_by_stmt_a = next(model.writer.writer.graph.triples(enabled_by_stmt_a_triple))
         else:
             enabled_by_stmt_a = model.writer.emit(enabled_by_stmt_a_triple[0], enabled_by_stmt_a_triple[1], enabled_by_stmt_a_triple[2])
             axiom_a = model.add_axiom(enabled_by_stmt_a)
-        enabled_by_stmt_b_triple = (pc.individuals[pc.regulated_activity["term"]], ENABLED_BY, pc.individuals[pc.full_id_b()])
+        enabled_by_stmt_b_triple = (pc.regulated_activity["uri"], ENABLED_BY, pc.individuals[pc.full_id_b()])
         if enabled_by_stmt_b_triple in model.writer.writer.graph:
-            enabled_by_stmt_b = model.writer.writer.graph.triples(enabled_by_stmt_b_triple)[0]
+            enabled_by_stmt_b = next(model.writer.writer.graph.triples(enabled_by_stmt_b_triple))
         else:
             enabled_by_stmt_b = model.writer.emit(enabled_by_stmt_b_triple[0], enabled_by_stmt_b_triple[1], enabled_by_stmt_b_triple[2])
             axiom_b = model.add_axiom(enabled_by_stmt_b)
@@ -318,14 +317,14 @@ for pc in p_connections.connections:
         # Connect the two activities
         # source_id = model.individuals[pc.mechanism_go_term]
         try:
-            source_id = pc.individuals[pc.mechanism["term"]]
+            source_id = pc.mechanism["uri"]
         except KeyError as err:
             pc.print()
             print(pc.individuals)
             raise err
         property_id = URIRef(expand_uri(pc.relation))
         # target_id = model.individuals[pc.regulated_activity_term]
-        target_id = pc.individuals[pc.regulated_activity["term"]]
+        target_id = pc.regulated_activity["uri"]
         if not model_contains_statement(model, source_id, property_id, pc.regulated_activity["term"]):
             # Annotate source MF GO term NamedIndividual with relation code-target MF term URI
             model.writer.emit(source_id, property_id, target_id)

@@ -85,20 +85,35 @@ class PathwayConnection():
                                                                                                                                                 idb=self.id_b))
 
     def declare_entities(self, model):
-        # Classes
+        self.declare_a(model)
+        self.declare_b(model)
+
+        return model
+
+    def declare_a(self, model):
+        # Class
         if self.full_id_a() not in model.classes:
             model.declare_class(self.full_id_a())
-        if self.full_id_b() not in model.classes:
-            model.declare_class(self.full_id_b())
 
         # Individuals
-        # if self.full_id_a() not in model.individuals:
         if self.full_id_a() not in self.individuals:
             if self.a_is_complex():
                 uri_a = self.complex_a.declare_entities(model)
             else:
                 uri_a = model.declare_individual(self.full_id_a())
             self.individuals[self.full_id_a()] = uri_a
+
+        self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
+        self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
+
+        return model
+
+    def declare_b(self, model):
+        # Class
+        if self.full_id_b() not in model.classes:
+            model.declare_class(self.full_id_b())
+
+        # Individuals
         if self.full_id_b() not in self.individuals and self.regulated_activity["uri"] is None:
             if self.b_is_complex():
                 uri_b = self.complex_b.declare_entities(model)
@@ -110,10 +125,7 @@ class PathwayConnection():
             for t in model.writer.writer.graph.triples((self.regulated_activity["uri"],ENABLED_BY,None)):
                 self.individuals[self.full_id_b()] = t[2]
 
-        self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
-        self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
         self.individuals[self.regulated_activity["term"]] = self.regulated_activity["uri"]
-
 
         return model
 
@@ -148,17 +160,19 @@ class PathwayConnection():
         # mechanism["term"] REGULATES regulated_activity["term"]
         graph = model.writer.writer.graph
 
-        a_enables_triples = []
-        for id_a in model.uri_list_for_individual(self.full_id_a()):
-            for mech_uri in model.uri_list_for_individual(self.mechanism["term"]):
-                if (mech_uri, ENABLED_BY, id_a) in graph:
-                    a_enables_triples.append((mech_uri, ENABLED_BY, id_a))
+        # a_enables_triples = []
+        # for id_a in model.uri_list_for_individual(self.full_id_a()):
+        #     for mech_uri in model.uri_list_for_individual(self.mechanism["term"]):
+        #         if (mech_uri, ENABLED_BY, id_a) in graph:
+        #             a_enables_triples.append((mech_uri, ENABLED_BY, id_a))
+        a_enables_triples = model.triples_by_ids(self.mechanism["term"], ENABLED_BY, self.full_id_a())
 
-        b_enables_triples = []
-        for id_b in model.uri_list_for_individual(self.full_id_b()):
-            for reg_act in model.uri_list_for_individual(self.regulated_activity["term"]):
-                if (reg_act, ENABLED_BY, id_b) in graph:
-                    b_enables_triples.append((reg_act, ENABLED_BY, id_b))
+        # b_enables_triples = []
+        # for id_b in model.uri_list_for_individual(self.full_id_b()):
+        #     for reg_act in model.uri_list_for_individual(self.regulated_activity["term"]):
+        #         if (reg_act, ENABLED_BY, id_b) in graph:
+        #             b_enables_triples.append((reg_act, ENABLED_BY, id_b))
+        b_enables_triples = model.triples_by_ids(self.regulated_activity["term"], ENABLED_BY, self.full_id_b())
 
         for a_triple in a_enables_triples:
             for b_triple in b_enables_triples:
@@ -210,7 +224,10 @@ class PathwayConnectionSet():
                 # if not (pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR") or line["TYPEA"] == "phenotype" or line["TYPEB"] == "phenotype"):
                 acceptable_types = ['protein','complex']
                 if line["TYPEA"] in acceptable_types and line["TYPEB"] in acceptable_types:
-                    self.append(pc)
+                    if self.find(pc):
+                        self.append_reference(pc)
+                    else:
+                        self.append(pc)
 
 
     def append(self, pathway_connection):

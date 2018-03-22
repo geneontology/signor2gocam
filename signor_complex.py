@@ -4,6 +4,7 @@ from rdflib.term import URIRef, Literal
 from rdflib.namespace import RDFS
 from prefixcommons.curie_util import expand_uri
 
+HAS_PART = URIRef(expand_uri("BFO:0000051"))
 complexes = []
 
 # class SignorComplex():
@@ -13,6 +14,7 @@ class SignorGrouping():
         self.name = name
         self.entities = entities
 
+
 class SignorComplex(SignorGrouping):
     def declare_entities(self, model):
         uri = model.declare_individual("GO:0032991")
@@ -20,10 +22,25 @@ class SignorComplex(SignorGrouping):
         for entity in self.entities:
             entity_full_id = NamingConvention.full_id(entity)
             entity_uri = model.declare_individual(entity_full_id)
-            part_of_stmt = model.writer.emit(uri, URIRef(expand_uri("BFO:0000051")), entity_uri)
+            part_of_stmt = model.writer.emit(uri, HAS_PART, entity_uri)
             model.add_axiom(part_of_stmt)
             "uri BFO:0000051 entity_uri"
         return uri
+
+    def uri_in_model(self, model):
+        graph = model.writer.writer.graph
+        complex_term = "GO:0032991"
+        complex_uris = model.uri_list_for_individual(complex_term)
+        for c_uri in complex_uris:
+            found_entities = [] # Collect connected entities for set comparison
+            for entity in self.entities:
+                for entity_uri in model.uri_list_for_individual(NamingConvention.full_id(entity)):
+                    if (c_uri, HAS_PART, entity_uri) in graph:
+                        found_entities.append(entity)
+            if set(self.entities) == set(found_entities):
+                print(c_uri)
+                return c_uri
+
 
 class SignorProteinFamily(SignorGrouping):
     def declare_entities(self, model):
@@ -32,7 +49,7 @@ class SignorProteinFamily(SignorGrouping):
         for entity in self.entities:
             entity_full_id = NamingConvention.full_id(entity)
             entity_uri = model.declare_individual(entity_full_id)
-            part_of_stmt = model.writer.emit(uri, URIRef(expand_uri("BFO:0000051")), entity_uri)
+            part_of_stmt = model.writer.emit(uri, HAS_PART, entity_uri)
             model.add_axiom(part_of_stmt)
             "uri BFO:0000051 entity_uri"
         return uri

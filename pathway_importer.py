@@ -46,7 +46,7 @@ def test_label_finding(model):
 def main():
     args = parser.parse_args()
 
-    model = GoCamModel("fix_evidence_enabled_bys.ttl")
+    model = GoCamModel("connect_all_genes.ttl")
     # p_connections = PathwayConnectionSet("SIGNOR-G2-M_trans_02_03_18.tsv")
     p_connections = PathwayConnectionSet(args.filename)
     linenum = 1
@@ -59,13 +59,9 @@ def main():
 
     # fill in regulated activities
     for pc in p_connections.connections:
-        # if pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR"):
-        #     # for now to see how model first looks - skip complexes
-        #     continue
-        regulated_activity_pc = p_connections.find_other_regulated_activity(pc.id_b)  # find_by_id_a(p_connections.connections, pc.id_b) - regulated_activity_pc.mechanism["term"]
+        regulated_activity_pc = p_connections.find_other_regulated_activity(pc.id_b)
         if regulated_activity_pc is not None:
             regulated_activity_term = regulated_activity_pc.mechanism["term"]
-            # regulated_activity_term_uri = regulated_activity_pc.individuals[regulated_activity_pc.mechanism["term"]]
             regulated_activity_term_uri = regulated_activity_pc.mechanism["uri"]
         else:
             regulated_activity_term = "GO:0003674"
@@ -84,7 +80,7 @@ def main():
 
         # enabled_by_stmt_a = model.writer.emit(model.individuals[pc.mechanism_go_term], ENABLED_BY, model.individuals[pc.full_id_a()])
         # if pc.mechanism["term"] in pc.individuals and not model_contains_statement(model, pc.individuals[pc.mechanism["term"]], ENABLED_BY, pc.full_id_a()):
-        full_statement = pc.full_statement_bnode_in_model(model)
+        # full_statement = pc.full_statement_bnode_in_model(model)
         # if pc.mechanism["term"] in pc.individuals and full_statement is None:
         # if full_statement is None:
         # print("Hey " + pc.full_id_a())
@@ -105,16 +101,21 @@ def main():
             # If triple A doesn't exist for entities, declare individuals and create it
             # enabled_by_stmt_a = model.writer.emit(pc.mechanism["term"], ENABLED_BY, pc.full_id_a())
             model = pc.declare_a(model)
-            enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
-            axiom_a = model.add_axiom(enabled_by_stmt_a)
+            pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
+            model.add_axiom(pc.enabled_by_stmt_a)
         else:
-            enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
+            pc.enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
+
+
+    # Now that the a's are declared, go check on the b's.
+    for pc in p_connections.connections:
         if pc.b_is_complex():
             entity_b = pc.complex_b.uri_in_model(model)
         else:
             entity_b = pc.full_id_b()
         if entity_b is not None:
-            enabled_by_stmt_b_triples = model.triples_by_ids(pc.regulated_activity["term"], ENABLED_BY, entity_b)
+            # enabled_by_stmt_b_triples = model.triples_by_ids(pc.regulated_activity["term"], ENABLED_BY, entity_b)
+            enabled_by_stmt_b_triples = model.triples_by_ids(None, ENABLED_BY, entity_b)
         else:
             enabled_by_stmt_b_triples = []
         regulated_activity_uris = []
@@ -124,7 +125,7 @@ def main():
             model = pc.declare_b(model)
             enabled_by_stmt_b = model.writer.emit(pc.regulated_activity["uri"], ENABLED_BY,
                                                   pc.individuals[pc.full_id_b()])
-            axiom_b = model.add_axiom(enabled_by_stmt_b)
+            model.add_axiom(enabled_by_stmt_b)
             regulated_activity_uris.append(enabled_by_stmt_b[0])
         # if enabled_by_stmt_b_triple in model.writer.writer.graph:
         #     enabled_by_stmt_b = next(model.writer.writer.graph.triples(enabled_by_stmt_b_triple))
@@ -135,7 +136,7 @@ def main():
         # Connect the two activities
         # Decouple this from ENABLED_BY statements to allow multiple regulation relations from one GP-MF node - issue #2
         # source_id = model.individuals[pc.mechanism_go_term]
-        source_id = enabled_by_stmt_a[0]
+        source_id = pc.enabled_by_stmt_a[0]
         property_id = URIRef(expand_uri(pc.relation))
         # target_id = model.individuals[pc.regulated_activity_term]
         # target_id = pc.regulated_activity["uri"]    # This should be an array of target activities (individual_list)

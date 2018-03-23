@@ -76,6 +76,8 @@ class PathwayConnection():
         self.regulated_activity = { "name" : None, "uri" : None, "term" : None }
 
         self.individuals = {}
+        self.enabled_by_stmt_a = None
+        self.regulated_activity_uris = []
 
     def print(self):
         print("[UniProtKB:{ida}] <- enabled_by – [{mechanism}] – [{relation}]-> [{regulated_activity}] – enabled_by-> [UniProtKB:{idb}]".format(ida=self.id_a,

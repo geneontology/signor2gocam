@@ -77,7 +77,6 @@ class PathwayConnection():
 
         self.individuals = {}
         self.enabled_by_stmt_a = None
-        self.regulated_activity_uris = []
 
     def print(self):
         print("[UniProtKB:{ida}] <- enabled_by – [{mechanism}] – [{relation}]-> [{regulated_activity}] – enabled_by-> [UniProtKB:{idb}]".format(ida=self.id_a,
@@ -98,15 +97,17 @@ class PathwayConnection():
             model.declare_class(self.full_id_a())
 
         # Individuals
-        if self.full_id_a() not in self.individuals:
+        # if self.full_id_a() not in self.individuals:
+        if self.full_id_a() not in model.individuals:
             if self.a_is_complex():
                 uri_a = self.complex_a.declare_entities(model)
             else:
                 uri_a = model.declare_individual(self.full_id_a())
-            self.individuals[self.full_id_a()] = uri_a
+            # self.individuals[self.full_id_a()] = uri_a
+        self.individuals[self.full_id_a()] = model.individuals[self.full_id_a()]
 
-        self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
-        self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
+        # self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])  # Segregate from singular entity declaration
+        # self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
 
         return model
 
@@ -183,53 +184,54 @@ class PathwayConnection():
                     return candidate_reg_triple
 
 class PathwayConnectionSet():
-    def __init__(self, filename):
+    def __init__(self, filename=None):
         self.connections = []
         linenum = 0
 
-        with open(filename, "r") as f:
-            data = list(csv.DictReader(f, delimiter="\t"))
-            for line in data:
-                linenum += 1
+        if filename:
+            with open(filename, "r") as f:
+                data = list(csv.DictReader(f, delimiter="\t"))
+                for line in data:
+                    linenum += 1
 
-                # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT
-                relation = None
-                if line["EFFECT"].startswith("up-regulates"):
-                    if line["DIRECT"] == "YES":
-                        relation = "RO:0002629"
-                    elif line["DIRECT"] == "NO":
-                        relation = "RO:0002213"
-                # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT
-                if line["EFFECT"].startswith("down-regulates"):
-                    if line["DIRECT"] == "YES":
-                        relation = "RO:0002630"
-                    elif line["DIRECT"] == "NO":
-                        relation = "RO:0002212"
-                # If unknown, use RO:0002211
-                if line["EFFECT"] == "unknown":
-                    relation = "RO:0002211"
-                # If form_complex, ignore these lines for now
-                if line["EFFECT"] == "form_complex":
-                    continue
+                    # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT
+                    relation = None
+                    if line["EFFECT"].startswith("up-regulates"):
+                        if line["DIRECT"] == "YES":
+                            relation = "RO:0002629"
+                        elif line["DIRECT"] == "NO":
+                            relation = "RO:0002213"
+                    # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT
+                    if line["EFFECT"].startswith("down-regulates"):
+                        if line["DIRECT"] == "YES":
+                            relation = "RO:0002630"
+                        elif line["DIRECT"] == "NO":
+                            relation = "RO:0002212"
+                    # If unknown, use RO:0002211
+                    if line["EFFECT"] == "unknown":
+                        relation = "RO:0002211"
+                    # If form_complex, ignore these lines for now
+                    if line["EFFECT"] == "form_complex":
+                        continue
 
-                pc = PathwayConnection(
-                    line["IDA"],
-                    line["IDB"],
-                    line["MECHANISM"],
-                    line["EFFECT"],
-                    line["DIRECT"],
-                    relation,
-                    [line["PMID"]],
-                    linenum
-                )
+                    pc = PathwayConnection(
+                        line["IDA"],
+                        line["IDB"],
+                        line["MECHANISM"],
+                        line["EFFECT"],
+                        line["DIRECT"],
+                        relation,
+                        [line["PMID"]],
+                        linenum
+                    )
 
-                # if not (pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR") or line["TYPEA"] == "phenotype" or line["TYPEB"] == "phenotype"):
-                acceptable_types = ['protein','complex']
-                if line["TYPEA"] in acceptable_types and line["TYPEB"] in acceptable_types:
-                    if self.find(pc):
-                        self.append_reference(pc)
-                    else:
-                        self.append(pc)
+                    # if not (pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR") or line["TYPEA"] == "phenotype" or line["TYPEB"] == "phenotype"):
+                    acceptable_types = ['protein','complex']
+                    if line["TYPEA"] in acceptable_types and line["TYPEB"] in acceptable_types:
+                        if self.find(pc):
+                            self.append_reference(pc)
+                        else:
+                            self.append(pc)
 
 
     def append(self, pathway_connection):
@@ -265,3 +267,21 @@ class PathwayConnectionSet():
                 filtered_reg_pcs.append(pc)
         if len(filtered_reg_pcs) > 0:
             return filtered_reg_pcs[0]
+
+    def find_all_by_id_a_and_id_b(self, pathway_connection):
+        found_connections = PathwayConnectionSet()
+        for pc in self.connections:
+            if pc.id_a == pathway_connection.id_a and pc.id_b == pathway_connection.id_b:
+                found_connections.append(pc)
+        return found_connections
+
+    def find_by_mech_term(self, term):
+        for pc in self.connections:
+            if pc.mechanism["term"] == term:
+                return pc
+
+    def remove_list(self, pc_list):
+        new_connection_list = self.connections
+        for dead_pc in pc_list:
+            new_connection_list = [pc for pc in new_connection_list if not pc.equals(dead_pc)]
+        self.connections = new_connection_list

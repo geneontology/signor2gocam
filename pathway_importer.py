@@ -8,6 +8,7 @@ import argparse
 
 ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
+HAS_INPUT = URIRef(expand_uri("RO:0002233"))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
@@ -42,11 +43,18 @@ def test_label_finding(model):
                 print(labels)
         axiom_counter += 1
 
-
 def main():
+
+    ## Organize connection objects
+    ## Declare entity A GPs and MFs
+    ## Add "Has_input" relations between MF and entity B GPs
+    ##      If entity B not declared, declare it
+    ## Connect regulation relations to all MF's enabled by entity B
+    ##      If no MF for entity B, add root MF enabled by B
+
     args = parser.parse_args()
 
-    model = GoCamModel("connect_all_genes.ttl")
+    model = GoCamModel("delete_uncertain_multi_activities.ttl")
     # p_connections = PathwayConnectionSet("SIGNOR-G2-M_trans_02_03_18.tsv")
     p_connections = PathwayConnectionSet(args.filename)
     linenum = 1
@@ -56,6 +64,25 @@ def main():
     total_pcs = len(p_connections.connections)
     print(total_pcs)
     skipped_count = 0
+
+    # Toss out connections according to precedence rules:
+    # protein kinase activity should be chosen over protein binding
+    # This should be separate from/before any OWL individuals are declared
+    for pc in p_connections.connections:
+        # Get list of all pcs with pc.id_a and pc.id_b
+        # If len of list is > 1
+        #   Look for protein kinase activity (GO:0004672), delete others if remaining are all protein binding (GO:0005515)
+        pc_list = p_connections.find_all_by_id_a_and_id_b(pc)
+        if len(pc_list.connections) > 1:
+            the_good_one = pc_list.find_by_mech_term("GO:0004672")
+            the_bad_one = pc_list.find_by_mech_term("GO:0005515")
+            # adfkafkeae # WHY IS THIS NOT CATCHING ATM TO ABL1 MFs?
+            if the_good_one is not None and the_bad_one is not None:
+                pc_list.connections.remove(the_good_one)
+                p_connections.remove_list(pc_list.connections)
+            elif the_good_one is not None:
+                [uncertain_pc.print() for uncertain_pc in pc_list.connections]
+                p_connections.remove_list(pc_list.connections)
 
     # fill in regulated activities
     for pc in p_connections.connections:
@@ -74,38 +101,36 @@ def main():
         else:
             pc.regulated_activity["term"] = regulated_activity_term
             pc.regulated_activity["uri"] = regulated_activity_term_uri
-            # pc.individuals[pc.regulated_activity["term"]] = regulated_activity_term_uri
-
-        # model = pc.declare_entities(model)
-
-        # enabled_by_stmt_a = model.writer.emit(model.individuals[pc.mechanism_go_term], ENABLED_BY, model.individuals[pc.full_id_a()])
-        # if pc.mechanism["term"] in pc.individuals and not model_contains_statement(model, pc.individuals[pc.mechanism["term"]], ENABLED_BY, pc.full_id_a()):
-        # full_statement = pc.full_statement_bnode_in_model(model)
-        # if pc.mechanism["term"] in pc.individuals and full_statement is None:
-        # if full_statement is None:
-        # print("Hey " + pc.full_id_a())
-        # if pc.id_a == "Q13315" and pc.id_b == "P38398":
-        #     print("Dang " + pc.pmid[0])
-        # model = pc.declare_entities(model)
 
         # enabled_by_stmt_a_triple = (pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
         if pc.a_is_complex():
             entity_a = pc.complex_a.uri_in_model(model)
         else:
             entity_a = pc.full_id_a()
-        if entity_a is not None:
-            enabled_by_stmt_a_triples = model.triples_by_ids(pc.mechanism["term"], ENABLED_BY, entity_a)
-        else:
-            enabled_by_stmt_a_triples = []
-        if len(enabled_by_stmt_a_triples) == 0:
-            # If triple A doesn't exist for entities, declare individuals and create it
-            # enabled_by_stmt_a = model.writer.emit(pc.mechanism["term"], ENABLED_BY, pc.full_id_a())
-            model = pc.declare_a(model)
-            pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
-            model.add_axiom(pc.enabled_by_stmt_a)
-        else:
-            pc.enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
+        # Don't care about existing "statements", just look for existing entity A GP and always create new enabled by statement
+        # if entity_a is not None:
+        #     enabled_by_stmt_a_triples = model.triples_by_ids(pc.mechanism["term"], ENABLED_BY, entity_a)
+        # else:
+        #     enabled_by_stmt_a_triples = []
+        # if len(enabled_by_stmt_a_triples) == 0:
 
+        # If triple A doesn't exist for entities, declare individuals and create it
+        # enabled_by_stmt_a = model.writer.emit(pc.mechanism["term"], ENABLED_BY, pc.full_id_a())
+        if entity_a is None or not isinstance(entity_a, URIRef):
+            for uri_a in model.uri_list_for_individual(pc.full_id_a()):
+                pc.individuals[pc.full_id_a()] = uri_a
+            if pc.full_id_a() not in pc.individuals:
+                model = pc.declare_a(model)
+        else:
+            pc.individuals[pc.full_id_a()] = entity_a
+        pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
+        pc.individuals[pc.mechanism["term"]] = pc.mechanism["uri"]
+        pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
+        axiom_a = model.add_axiom(pc.enabled_by_stmt_a)
+        model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
+
+        # else:
+        #     pc.enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
 
     # Now that the a's are declared, go check on the b's.
     for pc in p_connections.connections:
@@ -118,28 +143,29 @@ def main():
             enabled_by_stmt_b_triples = model.triples_by_ids(None, ENABLED_BY, entity_b)
         else:
             enabled_by_stmt_b_triples = []
+        # If pointing to activity
         regulated_activity_uris = []
         for b_triple in enabled_by_stmt_b_triples:
             regulated_activity_uris.append(b_triple[0])
+        # If pointing to GP
+        entity_b_uris = model.uri_list_for_individual(pc.full_id_b())
         if len(regulated_activity_uris) == 0:
             model = pc.declare_b(model)
             enabled_by_stmt_b = model.writer.emit(pc.regulated_activity["uri"], ENABLED_BY,
                                                   pc.individuals[pc.full_id_b()])
-            model.add_axiom(enabled_by_stmt_b)
+            axiom_b = model.add_axiom(enabled_by_stmt_b)
+            # model.add_evidence(axiom_b, "EXP", ["PMID:" + pmid for pmid in pc.pmid])  # Maybe don't want to add evidence to B since we're assuming these statements?
             regulated_activity_uris.append(enabled_by_stmt_b[0])
-        # if enabled_by_stmt_b_triple in model.writer.writer.graph:
-        #     enabled_by_stmt_b = next(model.writer.writer.graph.triples(enabled_by_stmt_b_triple))
-        # else:
-        #     enabled_by_stmt_b = model.writer.emit(enabled_by_stmt_b_triple[0], enabled_by_stmt_b_triple[1], enabled_by_stmt_b_triple[2])
-        #     axiom_b = model.add_axiom(enabled_by_stmt_b)
+            entity_b_uris.append(pc.individuals[pc.full_id_b()])
+
+        for entity_b_uri in entity_b_uris:
+            model.writer.emit(pc.enabled_by_stmt_a[0], HAS_INPUT, entity_b_uri)
+            relation_axiom = model.writer.emit_axiom(pc.enabled_by_stmt_a[0], HAS_INPUT, entity_b_uri)
 
         # Connect the two activities
         # Decouple this from ENABLED_BY statements to allow multiple regulation relations from one GP-MF node - issue #2
-        # source_id = model.individuals[pc.mechanism_go_term]
         source_id = pc.enabled_by_stmt_a[0]
         property_id = URIRef(expand_uri(pc.relation))
-        # target_id = model.individuals[pc.regulated_activity_term]
-        # target_id = pc.regulated_activity["uri"]    # This should be an array of target activities (individual_list)
         # if not model_contains_statement(model, source_id, property_id, pc.regulated_activity["term"]):  # Make into for loop
         for reg_activity_uri in regulated_activity_uris:
             target_id = reg_activity_uri
@@ -148,16 +174,14 @@ def main():
             # Add axiom (Source=MF term URI, Property=relation code, Target=MF term URI)
             relation_axiom = model.writer.emit_axiom(source_id, property_id, target_id)
             model.add_evidence(relation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
-        # else:
-        #     print("2")
-
-        # pc.print()
 
     with open(model.filepath, 'wb') as f:
         model.writer.writer.serialize(destination=f)
 
     print(skipped_count)
 
+    grouped = map(lambda x:x.id_a, p_connections.connections)
+    print(grouped)
+
 if __name__ == '__main__':
     main()
-    print("hey")

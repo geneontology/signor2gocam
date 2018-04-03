@@ -7,7 +7,7 @@ Converting Signor pathways to GO-CAM
 Also, complex info lookup file ("SIGNOR_complexes.csv") is currently hard-coded in and should be downloaded from [here](https://signor.uniroma2.it/downloads.php) before running. Will soon make this a changeable parameter.
 
 ## Running
-Specify Signor pathway file (-f) as input:
+Specify Signor pathway file (-f) as input and an outfile path with -o:
 ```
-python3 pathway_importer.py -f "SIGNOR-G2-M_trans_02_03_18.tsv"
+python3 pathway_importer.py -f "SIGNOR-G2-M_trans_02_03_18.tsv" -o "outfile.ttl"
 ```

@@ -1,4 +1,4 @@
-from gocamgen.gocamgen import GoCamModel
+from gocamgen.gocamgen import GoCamModel, GoCamEvidence
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace, OWL
@@ -13,6 +13,8 @@ HAS_INPUT = URIRef(expand_uri("RO:0002233"))
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
                     help="Input filename of Signor pathway data")
+parser.add_argument('-o', "--outfile", type=str, required=True,
+                    help="Output filename of generated model")
 
 def model_contains_statement(model, subject_uri, rel, object_id):
     for uri in model.uri_list_for_individual(object_id):
@@ -54,7 +56,7 @@ def main():
 
     args = parser.parse_args()
 
-    model = GoCamModel("delete_uncertain_multi_activities.ttl")
+    model = GoCamModel(args.outfile)
     # p_connections = PathwayConnectionSet("SIGNOR-G2-M_trans_02_03_18.tsv")
     p_connections = PathwayConnectionSet(args.filename)
     linenum = 1
@@ -76,7 +78,6 @@ def main():
         if len(pc_list.connections) > 1:
             the_good_one = pc_list.find_by_mech_term("GO:0004672")
             the_bad_one = pc_list.find_by_mech_term("GO:0005515")
-            # adfkafkeae # WHY IS THIS NOT CATCHING ATM TO ABL1 MFs?
             if the_good_one is not None and the_bad_one is not None:
                 pc_list.connections.remove(the_good_one)
                 p_connections.remove_list(pc_list.connections)
@@ -105,6 +106,9 @@ def main():
         # enabled_by_stmt_a_triple = (pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
         if pc.a_is_complex():
             entity_a = pc.complex_a.uri_in_model(model)
+            if entity_a is None:
+                model = pc.declare_a(model)
+                entity_a = pc.complex_a.uri_in_model(model)
         else:
             entity_a = pc.full_id_a()
         # Don't care about existing "statements", just look for existing entity A GP and always create new enabled by statement
@@ -126,8 +130,8 @@ def main():
         pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
         pc.individuals[pc.mechanism["term"]] = pc.mechanism["uri"]
         pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
-        axiom_a = model.add_axiom(pc.enabled_by_stmt_a)
-        model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
+        axiom_a = model.add_axiom(pc.enabled_by_stmt_a, GoCamEvidence("EXP", ["PMID:" + pmid for pmid in pc.pmid]))
+        # model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
 
         # else:
         #     pc.enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
@@ -136,8 +140,10 @@ def main():
     for pc in p_connections.connections:
         if pc.b_is_complex():
             entity_b = pc.complex_b.uri_in_model(model)
+            entity_b_uris = [entity_b]
         else:
             entity_b = pc.full_id_b()
+            entity_b_uris = model.uri_list_for_individual(entity_b)
         if entity_b is not None:
             # enabled_by_stmt_b_triples = model.triples_by_ids(pc.regulated_activity["term"], ENABLED_BY, entity_b)
             enabled_by_stmt_b_triples = model.triples_by_ids(None, ENABLED_BY, entity_b)
@@ -147,8 +153,7 @@ def main():
         regulated_activity_uris = []
         for b_triple in enabled_by_stmt_b_triples:
             regulated_activity_uris.append(b_triple[0])
-        # If pointing to GP
-        entity_b_uris = model.uri_list_for_individual(pc.full_id_b())
+
         if len(regulated_activity_uris) == 0:
             model = pc.declare_b(model)
             enabled_by_stmt_b = model.writer.emit(pc.regulated_activity["uri"], ENABLED_BY,
@@ -156,7 +161,8 @@ def main():
             axiom_b = model.add_axiom(enabled_by_stmt_b)
             # model.add_evidence(axiom_b, "EXP", ["PMID:" + pmid for pmid in pc.pmid])  # Maybe don't want to add evidence to B since we're assuming these statements?
             regulated_activity_uris.append(enabled_by_stmt_b[0])
-            entity_b_uris.append(pc.individuals[pc.full_id_b()])
+            # entity_b_uris.append(pc.individuals[pc.full_id_b()])
+            entity_b_uris = [pc.individuals[pc.full_id_b()]]
 
         for entity_b_uri in entity_b_uris:
             model.writer.emit(pc.enabled_by_stmt_a[0], HAS_INPUT, entity_b_uri)

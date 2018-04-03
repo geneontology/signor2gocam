@@ -93,8 +93,8 @@ class PathwayConnection():
 
     def declare_a(self, model):
         # Class
-        if self.full_id_a() not in model.classes:
-            model.declare_class(self.full_id_a())
+        if self.class_id_a() not in model.classes:
+            model.declare_class(self.class_id_a())
 
         # Individuals
         # if self.full_id_a() not in self.individuals:
@@ -103,8 +103,9 @@ class PathwayConnection():
                 uri_a = self.complex_a.declare_entities(model)
             else:
                 uri_a = model.declare_individual(self.full_id_a())
-            # self.individuals[self.full_id_a()] = uri_a
-        self.individuals[self.full_id_a()] = model.individuals[self.full_id_a()]
+            self.individuals[self.full_id_a()] = uri_a
+        else:
+            self.individuals[self.full_id_a()] = model.individuals[self.full_id_a()]
 
         # self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])  # Segregate from singular entity declaration
         # self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
@@ -113,8 +114,8 @@ class PathwayConnection():
 
     def declare_b(self, model):
         # Class
-        if self.full_id_b() not in model.classes:
-            model.declare_class(self.full_id_b())
+        if self.class_id_b() not in model.classes:
+            model.declare_class(self.class_id_b())
 
         # Individuals
         if self.full_id_b() not in self.individuals and self.regulated_activity["uri"] is None:
@@ -136,6 +137,10 @@ class PathwayConnection():
         return NamingConvention.full_id(self.id_a)
     def full_id_b(self):
         return NamingConvention.full_id(self.id_b)
+    def class_id_a(self):
+        return NamingConvention.class_id(self.id_a)
+    def class_id_b(self):
+        return NamingConvention.class_id(self.id_b)
 
     def a_is_complex(self):
         return NamingConvention.is_complex(self.id_a)

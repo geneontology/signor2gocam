@@ -1,4 +1,7 @@
 # signor2gocam
+
+[![Join the chat at https://gitter.im/geneontology/signor2gocam](https://badges.gitter.im/geneontology/signor2gocam.svg)](https://gitter.im/geneontology/signor2gocam?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 Converting Signor pathways to GO-CAM
 
 ## Dependencies

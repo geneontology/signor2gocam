@@ -5,7 +5,6 @@ from rdflib.namespace import Namespace, OWL
 from prefixcommons.curie_util import expand_uri
 from pathway_connections import PathwayConnectionSet
 import argparse
-import os
 
 ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))

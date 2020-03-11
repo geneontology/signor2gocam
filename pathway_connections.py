@@ -38,8 +38,8 @@ MECHANISM_GO_MAPPING = {
     "stabilization" : "GO:0003674",
     "sumoylation" : "GO:0061665",
     "s-nitrosylation" : "GO:0035605", # peptidyl-cysteine S-nitrosylase activity
-    "transcriptional regulation" : "GO:0140110",
     "transcriptional activation": "GO:0140110",
+    "transcriptional regulation": "GO:0140110",
     "transcriptional repression": "GO:0140110",
     "translation regulation": "GO:0045182",
     "trimethylation" : "GO:0008276",
@@ -205,13 +205,11 @@ class PathwayConnectionSet():
 
                     # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT or UNKNOWN
                     relation = None
-
                     if line["EFFECT"].startswith("up-regulates"):
                         if line["DIRECT"] == "YES":
                             relation = "RO:0002629"
                         elif line["DIRECT"] == "NO":
                             relation = "RO:0002213"
-
                     # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT or UNKNOWN
                     elif line["EFFECT"].startswith("down-regulates"):
                         if line["DIRECT"] == "YES":
@@ -224,7 +222,6 @@ class PathwayConnectionSet():
                     # If 'form complex', ignore these lines for now
                     elif line["EFFECT"] == "form complex":
                         continue
-
 
                     pc = PathwayConnection(
                         line["IDA"],

@@ -5,6 +5,7 @@ from rdflib.namespace import Namespace, OWL
 from prefixcommons.curie_util import expand_uri
 from pathway_connections import PathwayConnectionSet
 import argparse
+import os
 
 ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
@@ -12,7 +13,7 @@ HAS_INPUT = URIRef(expand_uri("RO:0002233"))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
-                    help="Input filename of Signor pathway data")
+                    help="Input filename of SIGNOR pathway data")
 parser.add_argument('-o', "--outfile", type=str, required=True,
                     help="Output filename of generated model")
 

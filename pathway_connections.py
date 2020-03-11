@@ -10,10 +10,11 @@ ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
 
 MECHANISM_GO_MAPPING = {
-    "acetylation" : "GO:0061733",
-    "binding" : "GO:0005515",
-    "chemical activation" : None,
-    "chemical inhibition" : None,
+    "acetylation" : "GO:0016407",
+    "binding" : "GO:0005515", # protein binding
+    "catalytic activity" :  "GO:0003824",
+    "chemical activation" : "GO:0005488", # binding
+    "chemical inhibition" : "GO:0005488", # binding
     "cleavage" : "GO:0008233",
     "deacetylation" : "GO:0033558",
     "demethylation" : "GO:0032451",
@@ -22,24 +23,26 @@ MECHANISM_GO_MAPPING = {
     "desumoylation" : "GO:0070140",
     "deubiquitination" : "GO:0004843",
     "glycosylation" : "GO:0016757",
-    "GAP" : "GO:0005096",
-    "GEF" : "GO:0005085",
-    "hydroxylation" : "GO:0036140",
+    "gtpase-activating protein" : "GO:0005096",
+    "guanine nucleotide exchange factor" : "GO:0005085",
+    "hydroxylation" : "GO:0016491", # oxidoreductase activity
     "lipidation" : "GO:0016747",
     "methylation" : "GO:0008276",
     "neddylation" : "GO:0061663",
     "oxidation" : "GO:0003674",
     "palmitoylation" : "GO:0016409",
     "phosphorylation" : "GO:0004672",
-    "post transcriptional regulation" : "GO:0035925",
-    "relocalization" : "GO:0003674",
-    "small molecule catalysis" : None,
+    "post transcriptional regulation" : "GO:0003730",
+    "relocalization" : "GO:0005215", # transporter activity
+    "small molecule catalysis" : "GO:0003674",
     "stabilization" : "GO:0003674",
     "sumoylation" : "GO:0061665",
-    "transcriptional activation" : "GO:0003700",
-    "transcriptional regulation" : "GO:0003700",
-    "transcriptional repression" : "GO:0003700",
-    "trimethylation (histone)" : "GO:0003674",
+    "s-nitrosylation" : "GO:0035605", # peptidyl-cysteine S-nitrosylase activity
+    "transcriptional regulation" : "GO:0140110",
+    "transcriptional activation": "GO:0140110",
+    "transcriptional repression": "GO:0140110",
+    "translation regulation": "GO:0045182",
+    "trimethylation" : "GO:0008276",
     "tyrosination" : "GO:0004835",
     "ubiquitination" : "GO:0061630"
 }
@@ -57,6 +60,7 @@ class PathwayConnection():
         self.pmid = pmid
         self.linenum = linenum
         self.complex_a = None
+
         try:
             if NamingConvention.is_complex(self.id_a) and self.id_a in COMPLEXES:
                 self.complex_a = COMPLEXES[self.id_a]
@@ -66,12 +70,11 @@ class PathwayConnection():
         self.complex_b = None
         if NamingConvention.is_complex(self.id_b) and self.id_b in COMPLEXES:
             self.complex_b = COMPLEXES[self.id_b]
-
-        if self.direct == "NO":
-            mechanism_term = "GO:0003674"
-        elif self.direct == "YES":
-            mechanism_term = MECHANISM_GO_MAPPING[mechanism]
-            # self.mechanism["term"] = MECHANISM_GO_MAPPING["stabilization"]
+        # by default mechanism = molecular function
+        mechanism_term = "GO:0003674"
+        if self.direct == "YES":
+            if(mechanism):
+                mechanism_term = MECHANISM_GO_MAPPING[mechanism]
         self.mechanism = { "name" : mechanism, "uri" : None, "term" : mechanism_term }
         self.regulated_activity = { "name" : None, "uri" : None, "term" : None }
 
@@ -198,26 +201,30 @@ class PathwayConnectionSet():
                 data = list(csv.DictReader(f, delimiter="\t"))
                 for line in data:
                     linenum += 1
+                    print(line)
 
-                    # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT
+                    # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT or UNKNOWN
                     relation = None
+
                     if line["EFFECT"].startswith("up-regulates"):
                         if line["DIRECT"] == "YES":
                             relation = "RO:0002629"
                         elif line["DIRECT"] == "NO":
                             relation = "RO:0002213"
-                    # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT
-                    if line["EFFECT"].startswith("down-regulates"):
+
+                    # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT or UNKNOWN
+                    elif line["EFFECT"].startswith("down-regulates"):
                         if line["DIRECT"] == "YES":
                             relation = "RO:0002630"
                         elif line["DIRECT"] == "NO":
                             relation = "RO:0002212"
                     # If unknown, use RO:0002211
-                    if line["EFFECT"] == "unknown":
+                    elif line["EFFECT"] == "unknown":
                         relation = "RO:0002211"
-                    # If form_complex, ignore these lines for now
-                    if line["EFFECT"] == "form_complex":
+                    # If 'form complex', ignore these lines for now
+                    elif line["EFFECT"] == "form complex":
                         continue
+
 
                     pc = PathwayConnection(
                         line["IDA"],

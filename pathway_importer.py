@@ -12,7 +12,7 @@ HAS_INPUT = URIRef(expand_uri("RO:0002233"))
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
-                    help="Input filename of Signor pathway data")
+                    help="Input filename of SIGNOR pathway data")
 parser.add_argument('-o', "--outfile", type=str, required=True,
                     help="Output filename of generated model")
 

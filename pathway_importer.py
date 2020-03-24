@@ -181,8 +181,7 @@ def main():
             relation_axiom = model.writer.emit_axiom(source_id, property_id, target_id)
             model.add_evidence(relation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
 
-    with open(model.filepath, 'wb') as f:
-        model.writer.writer.serialize(destination=f)
+    model.write(args.outfile)
 
     print(skipped_count)
 

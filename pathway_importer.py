@@ -13,6 +13,8 @@ HAS_INPUT = URIRef(expand_uri("RO:0002233"))
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
                     help="Input filename of SIGNOR pathway data")
+parser.add_argument('-t', "--model_title",
+                    help="Model title. Defaults to --outfile value.")
 parser.add_argument('-o', "--outfile", type=str, required=True,
                     help="Output filename of generated model")
 
@@ -56,7 +58,11 @@ def main():
 
     args = parser.parse_args()
 
-    model = GoCamModel(args.outfile)
+    if args.model_title:
+        model_title = args.model_title
+    else:
+        model_title = args.outfile
+    model = GoCamModel(model_title)
     # p_connections = PathwayConnectionSet("SIGNOR-G2-M_trans_02_03_18.tsv")
     p_connections = PathwayConnectionSet(args.filename)
     linenum = 1

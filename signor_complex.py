@@ -89,6 +89,7 @@ class SignorProteinFamilyFactory(SignorGroupingFactory):
         self.families = self.grouping
 
 def main():
+    # TODO: parameterize SIGNOR_complexes.csv path
     complex_list = SignorComplexFactory("SIGNOR_complexes.csv")
     complex = complex_list.complexes["SIGNOR-C87"]
     complex_cc = "GO:0032991"
@@ -101,6 +102,7 @@ def main():
     pathway_line_mech_or_reg_activity = "pc.whatevs"
     # state "pathway_line_mech_or_reg_activity ENABLED_BY complex_cc"
 
+    # TODO: parameterize SIGNOR_PF.csv path
     pf_list = SignorProteinFamilyFactory("SIGNOR_PF.csv")
     pf = pf_list.families["SIGNOR-PF11"]
     print("PF list for " + pf.name + ":")

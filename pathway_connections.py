@@ -1,4 +1,5 @@
 import csv
+import itertools
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
@@ -72,7 +73,7 @@ class PathwayConnection():
             self.complex_b = COMPLEXES[self.id_b]
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"
-        if self.direct == "YES":
+        if self.direct in ["YES", "t"]:
             if(mechanism):
                 mechanism_term = MECHANISM_GO_MAPPING[mechanism]
         self.mechanism = { "name" : mechanism, "uri" : None, "term" : mechanism_term }
@@ -191,6 +192,11 @@ class PathwayConnection():
                 if candidate_reg_triple in graph:
                     return candidate_reg_triple
 
+
+def upper_first(iterator):
+    return itertools.chain([next(iterator).upper()], iterator)
+
+
 class PathwayConnectionSet():
     def __init__(self, filename=None):
         self.connections = []
@@ -198,26 +204,27 @@ class PathwayConnectionSet():
 
         if filename:
             with open(filename, "r") as f:
-                data = list(csv.DictReader(f, delimiter="\t"))
+
+                data = list(csv.DictReader(upper_first(f), delimiter="\t"))
                 for line in data:
                     linenum += 1
-                    print(line)
+                    # print(line)
 
                     # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT or UNKNOWN
                     relation = None
                     if line["EFFECT"].startswith("up-regulates"):
-                        if line["DIRECT"] == "YES":
+                        if line["DIRECT"] in ["YES", "t"]:
                             relation = "RO:0002629"
-                        elif line["DIRECT"] == "NO":
+                        elif line["DIRECT"] in ["NO", "f"]:
                             relation = "RO:0002213"
                     # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT or UNKNOWN
                     elif line["EFFECT"].startswith("down-regulates"):
-                        if line["DIRECT"] == "YES":
+                        if line["DIRECT"] in ["YES", "t"]:
                             relation = "RO:0002630"
-                        elif line["DIRECT"] == "NO":
+                        elif line["DIRECT"] in ["NO", "f"]:
                             relation = "RO:0002212"
                     # If unknown, use RO:0002211
-                    elif line["EFFECT"] == "unknown":
+                    elif line["EFFECT"] in ["unknown", ""]:
                         relation = "RO:0002211"
                     # If 'form complex', ignore these lines for now
                     elif line["EFFECT"] == "form complex":

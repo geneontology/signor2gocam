@@ -116,7 +116,7 @@
 -
   MECHANISM: relocalization
   MI_ID: MI:0915
-  GO_ID: GO:0005215
+  GO_ID: GO:0030674
   RELATION:
 -
   MECHANISM: small molecule catalysis

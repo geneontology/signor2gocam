@@ -1,5 +1,6 @@
 import csv
 import itertools
+import yaml
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
@@ -10,48 +11,40 @@ ro = OboRO()
 
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
 
-MECHANISM_GO_MAPPING = {
-    "acetylation" : "GO:0016407",
-    "binding" : "GO:0005515", # protein binding
-    "catalytic activity" :  "GO:0003824",
-    "chemical activation" : "GO:0005488", # binding
-    "chemical inhibition" : "GO:0005488", # binding
-    "cleavage" : "GO:0008233",
-    "deacetylation" : "GO:0033558",
-    "demethylation" : "GO:0032451",
-    "dephosphorylation" : "GO:0004721",
-    "destabilization" : "GO:0003674",
-    "desumoylation" : "GO:0070140",
-    "deubiquitination" : "GO:0004843",
-    "glycosylation" : "GO:0016757",
-    "gtpase-activating protein" : "GO:0005096",
-    "guanine nucleotide exchange factor" : "GO:0005085",
-    "hydroxylation" : "GO:0016491", # oxidoreductase activity
-    "lipidation" : "GO:0016747",
-    "methylation" : "GO:0008276",
-    "neddylation" : "GO:0061663",
-    "oxidation" : "GO:0003674",
-    "palmitoylation" : "GO:0016409",
-    "phosphorylation" : "GO:0004672",
-    "post transcriptional regulation" : "GO:0003730",
-    "relocalization" : "GO:0005215", # transporter activity
-    "small molecule catalysis" : "GO:0003674",
-    "stabilization" : "GO:0003674",
-    "sumoylation" : "GO:0061665",
-    "s-nitrosylation" : "GO:0035605", # peptidyl-cysteine S-nitrosylase activity
-    "transcriptional activation": "GO:0140110",
-    "transcriptional regulation": "GO:0140110",
-    "transcriptional repression": "GO:0140110",
-    "translation regulation": "GO:0045182",
-    "trimethylation" : "GO:0008276",
-    "tyrosination" : "GO:0004835",
-    "ubiquitination" : "GO:0061630"
-}
 
-complex_csv_filename = "SIGNOR_complexes.csv"
-COMPLEXES = SignorComplexFactory(complex_csv_filename).complexes
+class MechanismToGoMapping:
+    def __init__(self, mechanism, mi_id, go_id, relation):
+        self.mechanism = mechanism
+        self.mi_id = mi_id
+        self.go_id = go_id
+        self.relation = relation
+
+
+class MechanismToGoMappingSet:
+    def __init__(self, mapping_file=None):
+        self.mappings = []
+        if mapping_file:
+            with open(mapping_file) as mf:
+                mappings = yaml.load(mf)
+            for m in mappings:
+                self.mappings.append(MechanismToGoMapping(
+                    mechanism=m["MECHANISM"],
+                    mi_id=m["MI_ID"],
+                    go_id=m["GO_ID"],
+                    relation=m["RELATION"]
+                ))
+
+    def go_id_by_mechanism(self, mechanism):
+        for m in self.mappings:
+            if m.mechanism == mechanism:
+                return m.go_id
+        
 
 class PathwayConnection():
+    MECHANISM_GO_MAPPING = MechanismToGoMappingSet("metadata/signor_mechanism_go_mapping.yaml")
+    complex_csv_filename = "SIGNOR_complexes.csv"
+    COMPLEXES = SignorComplexFactory(complex_csv_filename).complexes
+
     def __init__(self, id_a, id_b, mechanism, effect, direct, relation, pmid, linenum):
         self.id_a = id_a
         self.id_b = id_b
@@ -63,19 +56,19 @@ class PathwayConnection():
         self.complex_a = None
 
         try:
-            if NamingConvention.is_complex(self.id_a) and self.id_a in COMPLEXES:
-                self.complex_a = COMPLEXES[self.id_a]
+            if NamingConvention.is_complex(self.id_a) and self.id_a in self.COMPLEXES:
+                self.complex_a = self.COMPLEXES[self.id_a]
         except TypeError as err:
             print(self.id_a)
             raise err
         self.complex_b = None
-        if NamingConvention.is_complex(self.id_b) and self.id_b in COMPLEXES:
-            self.complex_b = COMPLEXES[self.id_b]
+        if NamingConvention.is_complex(self.id_b) and self.id_b in self.COMPLEXES:
+            self.complex_b = self.COMPLEXES[self.id_b]
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"
         if self.direct in ["YES", "t"]:
             if(mechanism):
-                mechanism_term = MECHANISM_GO_MAPPING[mechanism]
+                mechanism_term = self.MECHANISM_GO_MAPPING.go_id_by_mechanism(mechanism)
         self.mechanism = { "name" : mechanism, "uri" : None, "term" : mechanism_term }
         self.regulated_activity = { "name" : None, "uri" : None, "term" : None }
 

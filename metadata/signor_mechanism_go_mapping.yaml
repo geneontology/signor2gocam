@@ -1,0 +1,175 @@
+-
+  MECHANISM: acetylation
+  MI_ID: MI:0192
+  GO_ID: GO:0016407  # acetyltransferase activity
+  RELATION: RO:0002304  # causally upstream of, positive effect
+-
+  MECHANISM: binding
+  MI_ID: MI:0915
+  GO_ID: GO:0005515  # protein binding
+  RELATION: RO:0002629  # directly positively regulates
+-
+  MECHANISM: catalytic activity
+  MI_ID: MI:0414
+  GO_ID: GO:0003824
+  RELATION:
+-
+  MECHANISM: chemical activation
+  MI_ID: 
+  GO_ID: GO:0005488
+  RELATION:
+-
+  MECHANISM: chemical inhibition
+  MI_ID: 
+  GO_ID: GO:0005488
+  RELATION:
+-
+  MECHANISM: cleavage
+  MI_ID: MI:0194
+  GO_ID: GO:0008233
+  RELATION:
+-
+  MECHANISM: deacetylation
+  MI_ID: MI:0197
+  GO_ID: GO:0033558
+  RELATION:
+-
+  MECHANISM: demethylation
+  MI_ID: MI:0871
+  GO_ID: GO:0032451
+  RELATION:
+-
+  MECHANISM: dephosphorylation
+  MI_ID: MI:0203
+  GO_ID: GO:0004721
+  RELATION:
+-
+  MECHANISM: destabilization
+  MI_ID: 
+  GO_ID: 
+  RELATION:
+-
+  MECHANISM: desumoylation
+  MI_ID: MI:0568
+  GO_ID: GO:0070140
+  RELATION:
+-
+  MECHANISM: deubiquitination
+  MI_ID: MI:0204
+  GO_ID: GO:0004843
+  RELATION:
+-
+  MECHANISM: glycosylation
+  MI_ID: MI:0559
+  GO_ID: GO:0016757
+  RELATION:
+-
+  MECHANISM: gtpase-activating protein
+  MI_ID: MI:0414
+  GO_ID: GO:0005096
+  RELATION:
+-
+  MECHANISM: guanine nucleotide exchange factor
+  MI_ID: MI:2252
+  GO_ID: GO:0005085
+  RELATION:
+-
+  MECHANISM: hydroxylation
+  MI_ID: MI:0210
+  GO_ID: GO:0016491
+  RELATION:
+-
+  MECHANISM: lipidation
+  MI_ID: 
+  GO_ID: GO:0016747
+  RELATION:
+-
+  MECHANISM: methylation
+  MI_ID: MI:0213
+  GO_ID: GO:0008276
+  RELATION:
+-
+  MECHANISM: neddylation
+  MI_ID: MI:0567
+  GO_ID: GO:0061663
+  RELATION:
+-
+  MECHANISM: oxidation
+  MI_ID: 
+  GO_ID: 
+  RELATION:
+-
+  MECHANISM: palmitoylation
+  MI_ID: MI:0216
+  GO_ID: GO:0016409
+  RELATION:
+-
+  MECHANISM: phosphorylation
+  MI_ID: MI:0217
+  GO_ID: GO:0004672
+  RELATION:
+-
+  MECHANISM: post transcriptional regulation
+  MI_ID: MI:2249
+  GO_ID: GO:0003730
+  RELATION:
+-
+  MECHANISM: relocalization
+  MI_ID: MI:0915
+  GO_ID: GO:0005215
+  RELATION:
+-
+  MECHANISM: small molecule catalysis
+  MI_ID: MI:0414
+  GO_ID: 
+  RELATION:
+-
+  MECHANISM: stabilization
+  MI_ID: 
+  GO_ID: 
+  RELATION:
+-
+  MECHANISM: sumoylation
+  MI_ID: MI:0566
+  GO_ID: GO:0061665
+  RELATION:
+-
+  MECHANISM: s-nitrosylation
+  MI_ID: 
+  GO_ID: GO:0035605
+  RELATION:
+-
+  MECHANISM: transcriptional regulation
+  MI_ID: MI:2247
+  GO_ID: GO:0140110
+  RELATION:
+-
+  MECHANISM: transcriptional activation
+  MI_ID: MI:2247
+  GO_ID: GO:0140110
+  RELATION:
+-
+  MECHANISM: transcriptional repression
+  MI_ID: MI:2247
+  GO_ID: GO:0140110
+  RELATION:
+-
+  MECHANISM: translation regulation
+  MI_ID: MI:2248
+  GO_ID: GO:0003730
+  RELATION:
+-
+  MECHANISM: trimethylation
+  MI_ID: MI:0213
+  GO_ID: GO:0008276
+  RELATION:
+-
+  MECHANISM: tyrosination
+  MI_ID: MI:2273
+  GO_ID: GO:0004835
+  RELATION:
+-
+  MECHANISM: ubiquitination
+  MI_ID: MI:0220
+  GO_ID: GO:0061630
+  RELATION:

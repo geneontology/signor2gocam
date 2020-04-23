@@ -1,6 +1,11 @@
 import unittest
 import yaml
+import csv
+from rdflib import Graph
+from rdflib.plugins.sparql import prepareQuery
+from gocamgen.gocamgen import GoCamModel
 from pathway_connections import MechanismToGoMappingSet
+from pathway_importer import generate_model
 
 M_FILE = "metadata/signor_mechanism_go_mapping.yaml"
 
@@ -15,6 +20,95 @@ class TestSignor2Gocam(unittest.TestCase):
         mapping_set = MechanismToGoMappingSet(M_FILE)
         go_term = mapping_set.go_id_by_mechanism("catalytic activity")
         self.assertEqual(go_term, "GO:0003824")
+
+    def run_query(self, model: GoCamModel, query):
+        prefix_context = {
+            "RO": "http://purl.obolibrary.org/obo/RO_",
+            "UniProtKB": "http://identifiers.org/uniprot/",
+            "GO": "http://purl.obolibrary.org/obo/GO_"
+        }
+        graph = model.writer.writer.graph
+        response = graph.query(prepareQuery(query, initNs=prefix_context))
+        # response = graph.query(prepareQuery(query))
+        return response
+
+    def test_distinct_entity_instance_per_stmt(self):
+        # Sample of line count by ida column from SIGNOR-LBC pathway. Num could change as SIGNOR is updated.
+        # 15 O15530
+        # 2 P01116
+        # 2 P04637
+        # 2 P05412
+        # 19 P06213
+        # 2 P06400
+        # 17 P11362
+        # 5 P15056
+        stmt_file = "resources/test/SIGNOR-LBC.tsv"
+        entity_counts = {}
+        with open(stmt_file) as sf:
+            reader = csv.reader(sf, delimiter="\t")
+            next(reader)  # Skip header
+            for r in reader:
+                entity_a_id = r[5]
+                if len(entity_a_id) != 6:
+                    # This should hopefully only select UniProt IDs
+                    continue
+                if entity_a_id not in entity_counts:
+                    entity_counts[entity_a_id] = 0
+                entity_counts[entity_a_id] += 1
+        most_prominent_entity = list(sorted(entity_counts, key=lambda x: entity_counts[x], reverse=True))[0]
+
+        model = generate_model(stmt_file, "SIGNOR - Luminal Breast Cancer")
+
+        query = f"SELECT ?s WHERE {{ ?s rdf:type UniProtKB:{most_prominent_entity}}}"
+        resp = self.run_query(model, query)
+        print(len(resp), f"individuals for {most_prominent_entity}")
+
+        # Count all triples
+        query = "SELECT ?s ?p ?o WHERE {{ ?s ?p ?o}}"
+        resp = self.run_query(model, query)
+        print(len(resp), "total triples")
+
+        # TODO: Count all causal triples (causally_upstream_of_or_within RO:0002418 or descendants)
+        # TODO: Probably need to load RO outside of graph to trace descendants of RO:0002418
+        directly_positively_regulates = "RO:0002629"
+        query = f"SELECT ?s ?o WHERE {{ ?s {directly_positively_regulates} ?o}}"
+        resp = self.run_query(model, query)
+        print(len(resp), "causal triples")
+
+        # How many activities does most_prominent_entity enable?
+        enabled_by = "RO:0002333"
+        query = f"""
+        SELECT ?activity
+        WHERE {{ 
+            ?s rdf:type UniProtKB:{most_prominent_entity} .
+            ?activity {enabled_by} ?s
+        }}
+        """
+        resp = self.run_query(model, query)
+        print(len(resp), f"activities enabled_by {most_prominent_entity}")
+
+        # Find: most_prominent_entity <-enabled_by- protein_kinase_activity -directly_positively_regulates-> unknown -enabled_by-> irs1_gp
+        enabled_by = "RO:0002333"
+        protein_kinase_activity = "GO:0004672"
+        irs1_gp = "P35568"
+        query = f"""
+                SELECT ?activity ?unknown
+                WHERE {{ 
+                    ?s rdf:type UniProtKB:{most_prominent_entity} .
+                    ?activity rdf:type {protein_kinase_activity} .
+                    ?entity_b rdf:type UniProtKB:{irs1_gp} .
+                    ?activity {enabled_by} ?s .
+                    ?activity {directly_positively_regulates} ?unknown .
+                    ?unknown {enabled_by} ?entity_b
+                }}
+                """
+        resp = self.run_query(model, query)
+        print(len(resp), "matches found")
+        [print(r) for r in resp]
+
+        # TODO: Now check how many instances of most_prominent_entity are in model. Should this == input count?
+        print(most_prominent_entity, entity_counts[most_prominent_entity])
+        pass
 
 if __name__ == '__main__':
     unittest.main()

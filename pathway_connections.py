@@ -38,49 +38,103 @@ class MechanismToGoMappingSet:
         for m in self.mappings:
             if m.mechanism == mechanism:
                 return m.go_id
-        
 
-class PathwayConnection():
+
+class SignorEntity:
+    pass
+
+
+class SignorProtein(SignorEntity):
+    pass
+
+
+# TODO: Refactor `PathwayConnection`
+# * Connect causal statements together in networkx graph
+# 	* This will reduce need to query RDF triples
+# * Then write out to rdflib
+class PathwayConnection:
     MECHANISM_GO_MAPPING = MechanismToGoMappingSet("metadata/signor_mechanism_go_mapping.yaml")
     complex_csv_filename = "SIGNOR_complexes.csv"
     COMPLEXES = SignorComplexFactory(complex_csv_filename).complexes
 
-    def __init__(self, id_a, id_b, mechanism, effect, direct, relation, pmid, linenum):
-        self.id_a = id_a
+    def __init__(self, id_a, id_b, mechanism, effect, direct: bool, relation, references: list, linenum=None):
+        self.id_a = id_a  # TODO: Turn these into entity fields for SignorProtein or SignorComplex objects
         self.id_b = id_b
         self.effect = effect
         self.direct = direct
         self.relation = relation
-        self.pmid = pmid
+        self.references = references
         self.linenum = linenum
-        self.complex_a = None
-
-        try:
-            if NamingConvention.is_complex(self.id_a) and self.id_a in self.COMPLEXES:
-                self.complex_a = self.COMPLEXES[self.id_a]
-        except TypeError as err:
-            print(self.id_a)
-            raise err
-        self.complex_b = None
-        if NamingConvention.is_complex(self.id_b) and self.id_b in self.COMPLEXES:
-            self.complex_b = self.COMPLEXES[self.id_b]
+        self.complex_a = self.complex_from_id(self.id_a)
+        self.complex_b = self.complex_from_id(self.id_b)
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"
-        if self.direct in ["YES", "t"]:
-            if(mechanism):
+        if self.direct:
+            if mechanism:
                 mechanism_term = self.MECHANISM_GO_MAPPING.go_id_by_mechanism(mechanism)
-        self.mechanism = { "name" : mechanism, "uri" : None, "term" : mechanism_term }
-        self.regulated_activity = { "name" : None, "uri" : None, "term" : None }
+        self.mechanism = {
+            "name": mechanism,
+            "uri": None,
+            "term": mechanism_term
+        }
+        self.regulated_activity = {
+            "name": None,
+            "uri": None,
+            "term": None
+        }
 
         self.individuals = {}
         self.enabled_by_stmt_a = None
 
+    @staticmethod
+    def parse_line(line: dict, linenum: int=None):
+        direct = False
+        if line["DIRECT"] in ["YES", "t"]:
+            direct = True
+        relation = PathwayConnection.determine_relation(effect=line["EFFECT"], direct=direct)
+
+        pc = PathwayConnection(
+            id_a=line["IDA"],
+            id_b=line["IDB"],
+            mechanism=line["MECHANISM"],
+            effect=line["EFFECT"],
+            direct=direct,
+            relation=relation,
+            references=[line["PMID"]],
+            linenum=linenum
+        )
+        return pc
+
+    @classmethod
+    def determine_relation(cls, effect: str, direct: bool):
+        # If up-regulates (including any variants of this), use RO:0002629 if DIRECT,
+        # and use RO:0002213 if not DIRECT or UNKNOWN
+        relation = None
+        if effect.startswith("up-regulates"):
+            if direct:
+                relation = "RO:0002629"
+            else:
+                relation = "RO:0002213"
+        # If down-regulates (including any variants of this), use RO:0002630 if DIRECT,
+        # and use RO:0002212 if not DIRECT or UNKNOWN
+        elif effect.startswith("down-regulates"):
+            if direct:
+                relation = "RO:0002630"
+            else:
+                relation = "RO:0002212"
+        # If unknown, use RO:0002211
+        elif effect in ["unknown", ""]:
+            relation = "RO:0002211"
+
+        return relation
+
+    @classmethod
+    def complex_from_id(cls, entity_id: str):
+        if NamingConvention.is_complex(entity_id) and entity_id in cls.COMPLEXES:
+            return cls.COMPLEXES[entity_id]
+
     def print(self):
-        print("[UniProtKB:{ida}] <- enabled_by – [{mechanism}] – [{relation}]-> [{regulated_activity}] – enabled_by-> [UniProtKB:{idb}]".format(ida=self.id_a,
-                                                                                                                                                mechanism=self.mechanism["term"],
-                                                                                                                                                relation=self.relation,
-                                                                                                                                                regulated_activity=self.regulated_activity["term"],
-                                                                                                                                                idb=self.id_b))
+        print(f"[UniProtKB:{self.id_a}] <- enabled_by – [{self.mechanism['term']}] – [{self.relation}]-> [{self.regulated_activity['term']}] – enabled_by-> [UniProtKB:{self.id_b}]")
 
     def declare_entities(self, model):
         self.declare_a(model)
@@ -145,14 +199,14 @@ class PathwayConnection():
         return NamingConvention.is_complex(self.id_b)
 
     def clone(self):
-        new_connection = PathwayConnection(self.id_a, self.id_b, self.mechanism["name"], self.effect, self.direct, self.relation, self.pmid, self.linenum)
+        new_connection = PathwayConnection(self.id_a, self.id_b, self.mechanism["name"], self.effect, self.direct, self.relation, self.references, self.linenum)
         new_connection.mechanism = self.mechanism
         return new_connection
 
     def equals(self, pathway_connection, check_ref=False):
         if self.id_a == pathway_connection.id_a and self.id_b == pathway_connection.id_b and self.mechanism == pathway_connection.mechanism and self.relation == pathway_connection.relation and self.regulated_activity == pathway_connection.regulated_activity:
             if check_ref:
-                if set(self.pmid) == set(pathway_connection.pmid):
+                if set(self.references) == set(pathway_connection.references):
                     return True
             else:
                 return True
@@ -191,64 +245,39 @@ def upper_first(iterator):
 
 
 class PathwayConnectionSet():
-    def __init__(self, filename=None):
+    def __init__(self):
         self.connections = []
-        linenum = 0
 
+    @staticmethod
+    def parse_file(filename):
+        pc_set = PathwayConnectionSet()
+
+        linenum = 0
         if filename:
             with open(filename, "r") as f:
-
                 data = list(csv.DictReader(upper_first(f), delimiter="\t"))
                 for line in data:
                     linenum += 1
-                    # print(line)
 
-                    # If up-regulates (including any variants of this), use RO:0002629 if DIRECT, and use RO:0002213 if not DIRECT or UNKNOWN
-                    relation = None
-                    if line["EFFECT"].startswith("up-regulates"):
-                        if line["DIRECT"] in ["YES", "t"]:
-                            relation = "RO:0002629"
-                        elif line["DIRECT"] in ["NO", "f"]:
-                            relation = "RO:0002213"
-                    # If down-regulates (including any variants of this), use RO:0002630 if DIRECT, and use RO:0002212 if not DIRECT or UNKNOWN
-                    elif line["EFFECT"].startswith("down-regulates"):
-                        if line["DIRECT"] in ["YES", "t"]:
-                            relation = "RO:0002630"
-                        elif line["DIRECT"] in ["NO", "f"]:
-                            relation = "RO:0002212"
-                    # If unknown, use RO:0002211
-                    elif line["EFFECT"] in ["unknown", ""]:
-                        relation = "RO:0002211"
-                    # If 'form complex', ignore these lines for now
-                    elif line["EFFECT"] == "form complex":
+                    acceptable_types = ['protein', 'complex']
+                    if line["TYPEA"] not in acceptable_types or \
+                       line["TYPEB"] not in acceptable_types or \
+                       line["EFFECT"] == "form complex":
                         continue
 
-                    pc = PathwayConnection(
-                        line["IDA"],
-                        line["IDB"],
-                        line["MECHANISM"],
-                        line["EFFECT"],
-                        line["DIRECT"],
-                        relation,
-                        [line["PMID"]],
-                        linenum
-                    )
+                    pc = PathwayConnection.parse_line(line, linenum=linenum)
+                    pc_set.add(pc)
 
-                    # if not (pc.id_a.startswith("SIGNOR") or pc.id_b.startswith("SIGNOR") or line["TYPEA"] == "phenotype" or line["TYPEB"] == "phenotype"):
-                    acceptable_types = ['protein','complex']
-                    if line["TYPEA"] in acceptable_types and line["TYPEB"] in acceptable_types:
-                        if self.find(pc):
-                            self.append_reference(pc)
-                        else:
-                            self.append(pc)
+        return pc_set
 
 
-    def append(self, pathway_connection):
-        self.connections.append(pathway_connection)
-
-    def append_reference(self, pathway_connection):
-        connection = self.find(pathway_connection)
-        connection.pmid = set(connection.pmid) | set(pathway_connection.pmid)
+    def add(self, pathway_connection):
+        existing_connection = self.find(pathway_connection)
+        if existing_connection:
+            # Causal statement already exists so just add reference
+            existing_connection.references = set(existing_connection.references) | set(pathway_connection.references)
+        else:
+            self.connections.append(pathway_connection)
 
     def contains(self, pathway_connection, check_ref=False):
         for connection in self.connections:
@@ -281,7 +310,7 @@ class PathwayConnectionSet():
         found_connections = PathwayConnectionSet()
         for pc in self.connections:
             if pc.id_a == pathway_connection.id_a and pc.id_b == pathway_connection.id_b:
-                found_connections.append(pc)
+                found_connections.add(pc)
         return found_connections
 
     def find_by_mech_term(self, term):

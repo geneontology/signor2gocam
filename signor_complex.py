@@ -7,8 +7,8 @@ from prefixcommons.curie_util import expand_uri
 HAS_PART = URIRef(expand_uri("BFO:0000051"))
 complexes = []
 
-# class SignorComplex():
-class SignorGrouping():
+
+class SignorGrouping:
     def __init__(self, signor_id, name, entities):
         self.id = signor_id
         self.name = name
@@ -54,6 +54,7 @@ class SignorProteinFamily(SignorGrouping):
             "uri BFO:0000051 entity_uri"
         return uri
 
+
 class SignorGroupingFactory():
     NAME_FIELD = None
     GROUPING_CLASS = None
@@ -63,16 +64,20 @@ class SignorGroupingFactory():
         with open(filename, "r") as f:
             data = list(csv.DictReader(f, delimiter=";"))
 
-
             for line in data:
                 entities = []
 
                 for entity in line['LIST OF ENTITIES'].split(", "):
                     entities.append(entity.strip())
 
-                args = {"signor_id" : line['SIGNOR ID'], "name" : line[self.NAME_FIELD], "entities" : entities}
+                args = {
+                    "signor_id": line['SIGNOR ID'],
+                    "name": line[self.NAME_FIELD],
+                    "entities": entities
+                }
                 sig_grouping = eval(self.GROUPING_CLASS)(**args)
                 self.grouping[sig_grouping.id] = sig_grouping
+
 
 class SignorComplexFactory(SignorGroupingFactory):
     def __init__(self, filename):
@@ -81,12 +86,14 @@ class SignorComplexFactory(SignorGroupingFactory):
         SignorGroupingFactory.__init__(self, filename)
         self.complexes = self.grouping
 
+
 class SignorProteinFamilyFactory(SignorGroupingFactory):
     def __init__(self, filename):
         self.NAME_FIELD = "PROT. FAMILY NAME"
         self.GROUPING_CLASS = "SignorProteinFamily"
         SignorGroupingFactory.__init__(self, filename)
         self.families = self.grouping
+
 
 def main():
     # TODO: parameterize SIGNOR_complexes.csv path
@@ -108,6 +115,7 @@ def main():
     print("PF list for " + pf.name + ":")
     for entity in pf.entities:
         print(entity)
+
 
 if __name__ == "__main__":
     main()

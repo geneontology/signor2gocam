@@ -47,30 +47,14 @@ def test_label_finding(model):
                 print(labels)
         axiom_counter += 1
 
-def main():
+def generate_model(filename, title):
+    model = GoCamModel(title)
 
-    ## Organize connection objects
-    ## Declare entity A GPs and MFs
-    ## Add "Has_input" relations between MF and entity B GPs
-    ##      If entity B not declared, declare it
-    ## Connect regulation relations to all MF's enabled by entity B
-    ##      If no MF for entity B, add root MF enabled by B
-
-    args = parser.parse_args()
-
-    if args.model_title:
-        model_title = args.model_title
-    else:
-        model_title = args.outfile
-    model = GoCamModel(model_title)
-    # p_connections = PathwayConnectionSet("SIGNOR-G2-M_trans_02_03_18.tsv")
-    p_connections = PathwayConnectionSet(args.filename)
+    p_connections = PathwayConnectionSet.parse_file(filename)
     linenum = 1
-    # complex_csv_filename = "SIGNOR_complexes.csv"
-    # complexes = SignorComplexFactory(complex_csv_filename).complexes
 
     total_pcs = len(p_connections.connections)
-    print(total_pcs)
+    print(total_pcs, "initial pathway_connections")
     skipped_count = 0
 
     # Toss out connections according to precedence rules:
@@ -100,9 +84,10 @@ def main():
         else:
             regulated_activity_term = "GO:0003674"
             regulated_activity_term_uri = None
-        connection_clone = pc.clone()
+        connection_clone = pc.clone()  # Make copy for use in querying current set of pathway_connections
         connection_clone.regulated_activity["term"] = regulated_activity_term
-        if connection_clone.regulated_activity["term"] == None or p_connections.contains(connection_clone, check_ref=True):
+        if p_connections.contains(connection_clone, check_ref=True):
+            # pathway_connection with this regulated activity already exists
             skipped_count += 1
             continue
         else:
@@ -118,10 +103,10 @@ def main():
         else:
             entity_a = pc.full_id_a()
         # Don't care about existing "statements", just look for existing entity A GP and always create new enabled by statement
-        # if entity_a is not None:
-        #     enabled_by_stmt_a_triples = model.triples_by_ids(pc.mechanism["term"], ENABLED_BY, entity_a)
-        # else:
-        #     enabled_by_stmt_a_triples = []
+        if entity_a is not None:
+            enabled_by_stmt_a_triples = model.triples_by_ids(pc.mechanism["term"], ENABLED_BY, entity_a)
+        else:
+            enabled_by_stmt_a_triples = []
         # if len(enabled_by_stmt_a_triples) == 0:
 
         # If triple A doesn't exist for entities, declare individuals and create it
@@ -136,8 +121,8 @@ def main():
         pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
         pc.individuals[pc.mechanism["term"]] = pc.mechanism["uri"]
         pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
-        axiom_a = model.add_axiom(pc.enabled_by_stmt_a, GoCamEvidence("EXP", ["PMID:" + pmid for pmid in pc.pmid]))
-        # model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
+        axiom_a = model.add_axiom(pc.enabled_by_stmt_a, GoCamEvidence("EXP", ["PMID:" + pmid for pmid in pc.references]))
+        model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.references])
 
         # else:
         #     pc.enabled_by_stmt_a = enabled_by_stmt_a_triples[0]
@@ -165,7 +150,7 @@ def main():
             enabled_by_stmt_b = model.writer.emit(pc.regulated_activity["uri"], ENABLED_BY,
                                                   pc.individuals[pc.full_id_b()])
             axiom_b = model.add_axiom(enabled_by_stmt_b)
-            # model.add_evidence(axiom_b, "EXP", ["PMID:" + pmid for pmid in pc.pmid])  # Maybe don't want to add evidence to B since we're assuming these statements?
+            # model.add_evidence(axiom_b, "EXP", ["PMID:" + pmid for pmid in pc.references])  # Maybe don't want to add evidence to B since we're assuming these statements?
             regulated_activity_uris.append(enabled_by_stmt_b[0])
             # entity_b_uris.append(pc.individuals[pc.full_id_b()])
             entity_b_uris = [pc.individuals[pc.full_id_b()]]
@@ -185,14 +170,35 @@ def main():
             model.writer.emit(source_id, property_id, target_id)
             # Add axiom (Source=MF term URI, Property=relation code, Target=MF term URI)
             relation_axiom = model.writer.emit_axiom(source_id, property_id, target_id)
-            model.add_evidence(relation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.pmid])
+            model.add_evidence(relation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.references])
 
-    model.write(args.outfile)
-
-    print(skipped_count)
+    print(skipped_count, "causal statements skipped")
+    print(len(p_connections.connections), "pathway_connections at finish")
 
     grouped = map(lambda x:x.id_a, p_connections.connections)
     print(grouped)
+
+    return model
+    
+
+def main():
+
+    ## Organize connection objects
+    ## Declare entity A GPs and MFs
+    ## Add "Has_input" relations between MF and entity B GPs
+    ##      If entity B not declared, declare it
+    ## Connect regulation relations to all MF's enabled by entity B
+    ##      If no MF for entity B, add root MF enabled by B
+
+    args = parser.parse_args()
+
+    if args.model_title:
+        model_title = args.model_title
+    else:
+        model_title = args.outfile
+    
+    model = generate_model(args.filename, model_title)
+    model.write(args.outfile)
 
 if __name__ == '__main__':
     main()

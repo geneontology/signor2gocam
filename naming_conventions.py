@@ -18,3 +18,10 @@ class NamingConvention():
             return True
         else:
             return False
+
+    @staticmethod
+    def is_family(id):
+        if id.startswith("SIGNOR-PF"):
+            return True
+        else:
+            return False

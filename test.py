@@ -9,6 +9,7 @@ from pathway_importer import generate_model
 
 M_FILE = "metadata/signor_mechanism_go_mapping.yaml"
 
+
 class TestSignor2Gocam(unittest.TestCase):
 
     def test_mechanism_map_loading(self):
@@ -31,6 +32,21 @@ class TestSignor2Gocam(unittest.TestCase):
         response = graph.query(prepareQuery(query, initNs=prefix_context))
         # response = graph.query(prepareQuery(query))
         return response
+
+    def gen_causal_stmt_query(self, entity_a, mechanism, entity_b, reg_relation):
+        enabled_by = "RO:0002333"
+        query = f"""
+                SELECT ?activity ?unknown
+                WHERE {{ 
+                    ?s rdf:type UniProtKB:{entity_a} .
+                    ?activity rdf:type {mechanism} .
+                    ?entity_b rdf:type UniProtKB:{entity_b} .
+                    ?activity {enabled_by} ?s .
+                    ?activity {reg_relation} ?unknown .
+                    ?unknown {enabled_by} ?entity_b
+                }}
+                """
+        return query
 
     def test_distinct_entity_instance_per_stmt(self):
         # Sample of line count by ida column from SIGNOR-LBC pathway. Num could change as SIGNOR is updated.
@@ -88,27 +104,31 @@ class TestSignor2Gocam(unittest.TestCase):
         print(len(resp), f"activities enabled_by {most_prominent_entity}")
 
         # Find: most_prominent_entity <-enabled_by- protein_kinase_activity -directly_positively_regulates-> unknown -enabled_by-> irs1_gp
-        enabled_by = "RO:0002333"
         protein_kinase_activity = "GO:0004672"
         irs1_gp = "P35568"
-        query = f"""
-                SELECT ?activity ?unknown
-                WHERE {{ 
-                    ?s rdf:type UniProtKB:{most_prominent_entity} .
-                    ?activity rdf:type {protein_kinase_activity} .
-                    ?entity_b rdf:type UniProtKB:{irs1_gp} .
-                    ?activity {enabled_by} ?s .
-                    ?activity {directly_positively_regulates} ?unknown .
-                    ?unknown {enabled_by} ?entity_b
-                }}
-                """
-        resp = self.run_query(model, query)
+        resp = self.run_query(model, self.gen_causal_stmt_query(entity_a=most_prominent_entity,
+                                                                mechanism=protein_kinase_activity,
+                                                                entity_b=irs1_gp,
+                                                                reg_relation=directly_positively_regulates
+                                                                )
+                              )
         print(len(resp), "matches found")
-        [print(r) for r in resp]
+        self.assertEqual(len(resp), 2)
+
+        # Should only be one: Q00987 <-enabled_by- GO:0061630 -regulates-> MF -enabled_by-> P04637
+        resp = self.run_query(model, self.gen_causal_stmt_query(entity_a="Q00987",
+                                                                mechanism="GO:0061630",
+                                                                entity_b="P04637",
+                                                                reg_relation="RO:0002630"
+                                                                )
+                              )
+        print(len(resp), "matches found")
+        self.assertEqual(len(resp), 1)
 
         # TODO: Now check how many instances of most_prominent_entity are in model. Should this == input count?
         print(most_prominent_entity, entity_counts[most_prominent_entity])
         pass
+
 
 if __name__ == '__main__':
     unittest.main()

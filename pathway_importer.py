@@ -71,9 +71,6 @@ def generate_model(filename, title):
             if the_good_one is not None and the_bad_one is not None:
                 pc_list.connections.remove(the_good_one)
                 p_connections.remove_list(pc_list.connections)
-            elif the_good_one is not None:
-                [uncertain_pc.print() for uncertain_pc in pc_list.connections]
-                p_connections.remove_list(pc_list.connections)
 
     # fill in regulated activities
     for pc in p_connections.connections:
@@ -96,10 +93,10 @@ def generate_model(filename, title):
 
         # enabled_by_stmt_a_triple = (pc.mechanism["uri"], ENABLED_BY, pc.individuals[pc.full_id_a()])
         if pc.a_is_complex():
-            entity_a = pc.complex_a.uri_in_model(model)
+            entity_a = pc.entity_a.uri_in_model(model)
             if entity_a is None:
                 model = pc.declare_a(model)
-                entity_a = pc.complex_a.uri_in_model(model)
+                entity_a = pc.entity_a.uri_in_model(model)
         else:
             entity_a = pc.full_id_a()
         # Don't care about existing "statements", just look for existing entity A GP and always create new enabled by statement
@@ -130,7 +127,7 @@ def generate_model(filename, title):
     # Now that the a's are declared, go check on the b's.
     for pc in p_connections.connections:
         if pc.b_is_complex():
-            entity_b = pc.complex_b.uri_in_model(model)
+            entity_b = pc.entity_b.uri_in_model(model)
             entity_b_uris = [entity_b]
         else:
             entity_b = pc.full_id_b()
@@ -155,21 +152,20 @@ def generate_model(filename, title):
             # entity_b_uris.append(pc.individuals[pc.full_id_b()])
             entity_b_uris = [pc.individuals[pc.full_id_b()]]
 
+        mechanism_uri = pc.enabled_by_stmt_a[0]
         for entity_b_uri in entity_b_uris:
-            model.writer.emit(pc.enabled_by_stmt_a[0], HAS_INPUT, entity_b_uri)
-            relation_axiom = model.writer.emit_axiom(pc.enabled_by_stmt_a[0], HAS_INPUT, entity_b_uri)
+            model.writer.emit(mechanism_uri, HAS_INPUT, entity_b_uri)
+            relation_axiom = model.writer.emit_axiom(mechanism_uri, HAS_INPUT, entity_b_uri)
 
         # Connect the two activities
         # Decouple this from ENABLED_BY statements to allow multiple regulation relations from one GP-MF node - issue #2
-        source_id = pc.enabled_by_stmt_a[0]
-        property_id = URIRef(expand_uri(pc.relation))
+        regulatory_relation_uri = URIRef(expand_uri(pc.relation))
         # if not model_contains_statement(model, source_id, property_id, pc.regulated_activity["term"]):  # Make into for loop
         for reg_activity_uri in regulated_activity_uris:
-            target_id = reg_activity_uri
             # Annotate source MF GO term NamedIndividual with relation code-target MF term URI
-            model.writer.emit(source_id, property_id, target_id)
+            model.writer.emit(mechanism_uri, regulatory_relation_uri, reg_activity_uri)
             # Add axiom (Source=MF term URI, Property=relation code, Target=MF term URI)
-            relation_axiom = model.writer.emit_axiom(source_id, property_id, target_id)
+            relation_axiom = model.writer.emit_axiom(mechanism_uri, regulatory_relation_uri, reg_activity_uri)
             model.add_evidence(relation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.references])
 
     print(skipped_count, "causal statements skipped")

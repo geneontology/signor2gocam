@@ -4,8 +4,9 @@ import yaml
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
-from signor_complex import SignorComplexFactory
+from entity_factories import SignorEntityFactory
 from naming_conventions import NamingConvention
+from entity_models import SignorEntity, SignorProtein, SignorComplex
 
 ro = OboRO()
 
@@ -40,33 +41,21 @@ class MechanismToGoMappingSet:
                 return m.go_id
 
 
-class SignorEntity:
-    pass
-
-
-class SignorProtein(SignorEntity):
-    pass
-
-
 # TODO: Refactor `PathwayConnection`
 # * Connect causal statements together in networkx graph
 # 	* This will reduce need to query RDF triples
 # * Then write out to rdflib
 class PathwayConnection:
     MECHANISM_GO_MAPPING = MechanismToGoMappingSet("metadata/signor_mechanism_go_mapping.yaml")
-    complex_csv_filename = "SIGNOR_complexes.csv"
-    COMPLEXES = SignorComplexFactory(complex_csv_filename).complexes
 
-    def __init__(self, id_a, id_b, mechanism, effect, direct: bool, relation, references: list, linenum=None):
-        self.id_a = id_a  # TODO: Turn these into entity fields for SignorProtein or SignorComplex objects
-        self.id_b = id_b
+    def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool, relation, references: list, linenum=None):
+        self.entity_a = entity_a
+        self.entity_b = entity_b
         self.effect = effect
         self.direct = direct
         self.relation = relation
         self.references = references
         self.linenum = linenum
-        self.complex_a = self.complex_from_id(self.id_a)
-        self.complex_b = self.complex_from_id(self.id_b)
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"
         if self.direct:
@@ -88,14 +77,17 @@ class PathwayConnection:
 
     @staticmethod
     def parse_line(line: dict, linenum: int=None):
+        entity_a = SignorEntityFactory.determine_entity(entity_id=line["IDA"], entity_name=line["ENTITYA"])
+        entity_b = SignorEntityFactory.determine_entity(entity_id=line["IDB"], entity_name=line["ENTITYB"])
+
         direct = False
         if line["DIRECT"] in ["YES", "t"]:
             direct = True
         relation = PathwayConnection.determine_relation(effect=line["EFFECT"], direct=direct)
 
         pc = PathwayConnection(
-            id_a=line["IDA"],
-            id_b=line["IDB"],
+            entity_a=entity_a,
+            entity_b=entity_b,
             mechanism=line["MECHANISM"],
             effect=line["EFFECT"],
             direct=direct,
@@ -122,25 +114,21 @@ class PathwayConnection:
                 relation = "RO:0002630"
             else:
                 relation = "RO:0002212"
-        # If unknown, use RO:0002211
+        # If unknown, use RO:0002211 (regulates)
         elif effect in ["unknown", ""]:
             relation = "RO:0002211"
 
         return relation
 
-    @classmethod
-    def complex_from_id(cls, entity_id: str):
-        if NamingConvention.is_complex(entity_id) and entity_id in cls.COMPLEXES:
-            return cls.COMPLEXES[entity_id]
+    def __str__(self):
+        return f"[UniProtKB:{self.id_a()}] <- enabled_by – [{self.mechanism['term']}] – [{self.relation}]-> [{self.regulated_activity['term']}] – enabled_by-> [UniProtKB:{self.id_b()}]"
 
     def print(self):
-        print(f"[UniProtKB:{self.id_a}] <- enabled_by – [{self.mechanism['term']}] – [{self.relation}]-> [{self.regulated_activity['term']}] – enabled_by-> [UniProtKB:{self.id_b}]")
+        print(self)
 
     def declare_entities(self, model):
         self.declare_a(model)
         self.declare_b(model)
-
-        return model
 
     def declare_a(self, model):
         # Class
@@ -148,19 +136,11 @@ class PathwayConnection:
             model.declare_class(self.class_id_a())
 
         # Individuals
-        # if self.full_id_a() not in self.individuals:
         if self.full_id_a() not in model.individuals:
-            if self.a_is_complex():
-                uri_a = self.complex_a.declare_entities(model)
-            else:
-                uri_a = model.declare_individual(self.full_id_a())
+            uri_a = self.entity_a.declare(model)
             self.individuals[self.full_id_a()] = uri_a
         else:
             self.individuals[self.full_id_a()] = model.individuals[self.full_id_a()]
-
-        # self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])  # Segregate from singular entity declaration
-        # self.individuals[self.mechanism["term"]] = self.mechanism["uri"]
-
         return model
 
     def declare_b(self, model):
@@ -170,10 +150,7 @@ class PathwayConnection:
 
         # Individuals
         if self.full_id_b() not in self.individuals and self.regulated_activity["uri"] is None:
-            if self.b_is_complex():
-                uri_b = self.complex_b.declare_entities(model)
-            else:
-                uri_b = model.declare_individual(self.full_id_b())
+            uri_b = self.entity_b.declare(model)
             self.individuals[self.full_id_b()] = uri_b
             self.regulated_activity["uri"] = model.declare_individual(self.regulated_activity["term"])
         else:
@@ -181,30 +158,54 @@ class PathwayConnection:
                 self.individuals[self.full_id_b()] = t[2]
 
         self.individuals[self.regulated_activity["term"]] = self.regulated_activity["uri"]
-
         return model
 
+    def id_a(self):
+        return self.entity_a.id
+
+    def id_b(self):
+        return self.entity_b.id
+
+    @staticmethod
+    def _full_id(entity: SignorEntity):
+        return entity.full_id()
+
     def full_id_a(self):
-        return NamingConvention.full_id(self.id_a)
+        return self._full_id(self.entity_a)
+
     def full_id_b(self):
-        return NamingConvention.full_id(self.id_b)
+        return self._full_id(self.entity_b)
+
+    @staticmethod
+    def _class_id(entity: SignorEntity):
+        return entity.class_id()
+
     def class_id_a(self):
-        return NamingConvention.class_id(self.id_a)
+        return self._class_id(self.entity_a)
+
     def class_id_b(self):
-        return NamingConvention.class_id(self.id_b)
+        return self._class_id(self.entity_b)
+
+    @staticmethod
+    def _is_complex(entity: SignorEntity):
+        return entity.is_complex()
 
     def a_is_complex(self):
-        return NamingConvention.is_complex(self.id_a)
+        return self._is_complex(self.entity_a)
+
     def b_is_complex(self):
-        return NamingConvention.is_complex(self.id_b)
+        return self._is_complex(self.entity_b)
 
     def clone(self):
-        new_connection = PathwayConnection(self.id_a, self.id_b, self.mechanism["name"], self.effect, self.direct, self.relation, self.references, self.linenum)
+        new_connection = PathwayConnection(self.entity_a, self.entity_b, self.mechanism["name"], self.effect,
+                                           self.direct, self.relation, self.references, self.linenum)
         new_connection.mechanism = self.mechanism
         return new_connection
 
     def equals(self, pathway_connection, check_ref=False):
-        if self.id_a == pathway_connection.id_a and self.id_b == pathway_connection.id_b and self.mechanism == pathway_connection.mechanism and self.relation == pathway_connection.relation and self.regulated_activity == pathway_connection.regulated_activity:
+        if self.entity_a == pathway_connection.entity_a and self.entity_b == pathway_connection.entity_b and \
+                self.mechanism == pathway_connection.mechanism and self.relation == pathway_connection.relation \
+                and self.regulated_activity == pathway_connection.regulated_activity:
             if check_ref:
                 if set(self.references) == set(pathway_connection.references):
                     return True
@@ -293,7 +294,7 @@ class PathwayConnectionSet():
     def find_by_id_a(self, id):
         pcs = []
         for pc in self.connections:
-            if pc.id_a == id:
+            if pc.id_a() == id:
                 pcs.append(pc)
         return pcs
 
@@ -309,7 +310,7 @@ class PathwayConnectionSet():
     def find_all_by_id_a_and_id_b(self, pathway_connection):
         found_connections = PathwayConnectionSet()
         for pc in self.connections:
-            if pc.id_a == pathway_connection.id_a and pc.id_b == pathway_connection.id_b:
+            if pc.id_a() == pathway_connection.id_a() and pc.id_b() == pathway_connection.id_b():
                 found_connections.add(pc)
         return found_connections
 

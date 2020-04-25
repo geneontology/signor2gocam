@@ -1,6 +1,7 @@
 import csv
 import itertools
 import yaml
+from typing import List
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
@@ -131,34 +132,10 @@ class PathwayConnection:
         self.declare_b(model)
 
     def declare_a(self, model):
-        # Class
-        if self.class_id_a() not in model.classes:
-            model.declare_class(self.class_id_a())
-
-        # Individuals
-        if self.full_id_a() not in model.individuals:
-            uri_a = self.entity_a.declare(model)
-            self.individuals[self.full_id_a()] = uri_a
-        else:
-            self.individuals[self.full_id_a()] = model.individuals[self.full_id_a()]
-        return model
+        self.entity_a.declare(model)
 
     def declare_b(self, model):
-        # Class
-        if self.class_id_b() not in model.classes:
-            model.declare_class(self.class_id_b())
-
-        # Individuals
-        if self.full_id_b() not in self.individuals and self.regulated_activity["uri"] is None:
-            uri_b = self.entity_b.declare(model)
-            self.individuals[self.full_id_b()] = uri_b
-            self.regulated_activity["uri"] = model.declare_individual(self.regulated_activity["term"])
-        else:
-            for t in model.writer.writer.graph.triples((self.regulated_activity["uri"],ENABLED_BY,None)):
-                self.individuals[self.full_id_b()] = t[2]
-
-        self.individuals[self.regulated_activity["term"]] = self.regulated_activity["uri"]
-        return model
+        self.entity_b.declare(model)
 
     def id_a(self):
         return self.entity_a.id
@@ -291,7 +268,7 @@ class PathwayConnectionSet():
             if connection.equals(pathway_connection, check_ref=check_ref):
                 return connection
 
-    def find_by_id_a(self, id):
+    def find_by_id_a(self, id) -> List[PathwayConnection]:
         pcs = []
         for pc in self.connections:
             if pc.id_a() == id:

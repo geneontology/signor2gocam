@@ -8,9 +8,10 @@ HAS_PART = URIRef(expand_uri("BFO:0000051"))
 
 
 class SignorEntity:
-    def __init__(self, entity_id, name):
+    def __init__(self, entity_id, name, uri=None):
         self.id = entity_id
         self.name = name
+        self.uri = uri
 
     def full_id(self):
         return NamingConvention.full_id(self.id)
@@ -26,13 +27,17 @@ class SignorEntity:
             return self.id == other.id and self.name == other.name
         return False
 
+    def __str__(self):
+        return f"{self.id} - {self.name}"
+
     def declare(self, model: GoCamModel):
         pass
 
 
 class SignorProtein(SignorEntity):
     def declare(self, model):
-        return model.declare_individual(self.full_id())
+        self.uri = model.declare_individual(self.full_id())
+        return self.uri
 
 
 class SignorGrouping(SignorEntity):
@@ -46,15 +51,15 @@ class SignorComplex(SignorGrouping):
         return self.declare_entities(model)
 
     def declare_entities(self, model):
-        uri = model.declare_individual("GO:0032991")
-        model.writer.writer.graph.add((uri, RDFS.label, Literal(str(self.name))))
+        self.uri = model.declare_individual("GO:0032991")
+        model.writer.writer.graph.add((self.uri, RDFS.label, Literal(str(self.name))))
         for entity in self.entities:
             entity_full_id = NamingConvention.full_id(entity)
             entity_uri = model.declare_individual(entity_full_id)
-            part_of_stmt = model.writer.emit(uri, HAS_PART, entity_uri)
+            part_of_stmt = model.writer.emit(self.uri, HAS_PART, entity_uri)
             model.add_axiom(part_of_stmt)
             "uri BFO:0000051 entity_uri"
-        return uri, model
+        return self.uri
 
     def uri_in_model(self, model):
         graph = model.writer.writer.graph

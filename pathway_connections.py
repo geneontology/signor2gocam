@@ -42,14 +42,36 @@ class MechanismToGoMappingSet:
                 return m.go_id
 
 
+class AnnotatorOrcidMapping:
+    def __init__(self, annotator_name, orcid):
+        self.annotator_name = annotator_name
+        self.orcid = orcid
+
+class AnnotatorOrcidMappingSet:
+    def __init__(self, file=None):
+        self.mappings = []
+        if file:
+            with open(file) as mf:
+                mappings = list(csv.DictReader(mf, delimiter="\t"))
+                for m in mappings:
+                    self.mappings.append(AnnotatorOrcidMapping(
+                        annotator_name=m["ANNOTATOR"],
+                        orcid=m["ORCID"],
+                    ))
+
+    def orcid_by_name(self, annotator_name):
+        for m in self.mappings:
+            if m.annotator_name == annotator_name:
+                return m.orcid
+
 # TODO: Refactor `PathwayConnection`
 # * Connect causal statements together in networkx graph
 # 	* This will reduce need to query RDF triples
 # * Then write out to rdflib
 class PathwayConnection:
     MECHANISM_GO_MAPPING = MechanismToGoMappingSet("metadata/signor_mechanism_go_mapping.yaml")
-
-    def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool, relation, references: list, linenum=None):
+    ANNOTATOR_ORCID_MAPPING = AnnotatorOrcidMappingSet("metadata/annotator_orcid.tsv")
+    def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool, relation, references: list, annotator, linenum=None):
         self.entity_a = entity_a
         self.entity_b = entity_b
         self.effect = effect
@@ -73,6 +95,9 @@ class PathwayConnection:
             "term": None
         }
 
+        if annotator:
+            self.annotator = self.ANNOTATOR_ORCID_MAPPING.orcid_by_name(annotator)
+
         self.individuals = {}
         self.enabled_by_stmt_a = None
 
@@ -94,6 +119,7 @@ class PathwayConnection:
             direct=direct,
             relation=relation,
             references=[line["PMID"]],
+            annotator=line["ANNOTATOR"],
             linenum=linenum
         )
         return pc

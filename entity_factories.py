@@ -1,6 +1,8 @@
 import csv
+import os
 from naming_conventions import NamingConvention
 from entity_models import SignorEntity, SignorProtein, SignorComplex, SignorProteinFamily
+from download import SignorDownloader
 
 
 class SignorGroupingFactory:
@@ -28,7 +30,14 @@ class SignorGroupingFactory:
 
 
 class SignorComplexFactory(SignorGroupingFactory):
-    def __init__(self, filename):
+    FILENAME = "resources/SIGNOR_complexes.csv"
+
+    def __init__(self, filename=None):
+        if filename is None:
+            filename = self.FILENAME
+        if not os.path.exists(filename):
+            filename = SignorDownloader.download_complexes()
+
         self.NAME_FIELD = "COMPLEX NAME"
         self.GROUPING_CLASS = SignorComplex
         SignorGroupingFactory.__init__(self, filename)
@@ -36,7 +45,14 @@ class SignorComplexFactory(SignorGroupingFactory):
 
 
 class SignorProteinFamilyFactory(SignorGroupingFactory):
-    def __init__(self, filename):
+    FILENAME = "resources/SIGNOR_PF.csv"
+
+    def __init__(self, filename=None):
+        if filename is None:
+            filename = self.FILENAME
+        if not os.path.exists(filename):
+            filename = SignorDownloader.download_families()
+
         self.NAME_FIELD = "PROT. FAMILY NAME"
         self.GROUPING_CLASS = SignorProteinFamily
         SignorGroupingFactory.__init__(self, filename)
@@ -44,10 +60,8 @@ class SignorProteinFamilyFactory(SignorGroupingFactory):
 
 
 class SignorEntityFactory:
-    complex_csv_filename = "SIGNOR_complexes.csv"
-    complex_factory = SignorComplexFactory(complex_csv_filename)
-    family_csv_filename = "SIGNOR_PF.csv"
-    family_factory = SignorProteinFamilyFactory(family_csv_filename)
+    complex_factory = SignorComplexFactory()
+    family_factory = SignorProteinFamilyFactory()
 
     @classmethod
     def determine_entity(cls, entity_id: str, entity_name: str) -> SignorEntity:

@@ -6,8 +6,7 @@ from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
 from entity_factories import SignorEntityFactory
-from naming_conventions import NamingConvention
-from entity_models import SignorEntity, SignorProtein, SignorComplex
+from entity_models import SignorEntity
 
 ro = OboRO()
 

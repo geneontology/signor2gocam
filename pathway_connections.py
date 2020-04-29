@@ -37,8 +37,10 @@ class MechanismToGoMappingSet:
 
     def go_id_by_mechanism(self, mechanism):
         for m in self.mappings:
-            if m.mechanism == mechanism:
+            if m.mechanism == mechanism and m.go_id:
                 return m.go_id
+        # Fallback on root MF
+        return "GO:0003674"
 
 
 class AnnotatorOrcidMapping:

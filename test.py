@@ -14,7 +14,7 @@ class TestSignor2Gocam(unittest.TestCase):
 
     def test_mechanism_map_loading(self):
         with open(M_FILE) as mf:
-            mappings = yaml.load(mf)
+            mappings = yaml.safe_load(mf)
         self.assertGreater(len(mappings), 1)
 
     def test_mechanism_mapping_set(self):
@@ -127,7 +127,6 @@ class TestSignor2Gocam(unittest.TestCase):
 
         # TODO: Now check how many instances of most_prominent_entity are in model. Should this == input count?
         print(most_prominent_entity, entity_counts[most_prominent_entity])
-        pass
 
 
 if __name__ == '__main__':

@@ -9,6 +9,7 @@ import argparse
 ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
 HAS_INPUT = URIRef(expand_uri("RO:0002233"))
+EXP_ECO_CODE = "ECO:0000269"
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
@@ -80,9 +81,13 @@ def generate_model(filename, title):
         pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
         # Emit mechanism -enabled_by -> entity_a
         pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.entity_a.uri)
-        axiom_a = model.add_axiom(pc.enabled_by_stmt_a,
-                                  GoCamEvidence("EXP", ["PMID:" + pmid for pmid in pc.references]))
-        model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.references])
+        contributors = []
+        if pc.annotator:
+            contributors = [pc.annotator]
+        evidence = GoCamEvidence(EXP_ECO_CODE, ["PMID:" + pmid for pmid in pc.references],
+                                 contributors=contributors)
+        axiom_a = model.add_axiom(pc.enabled_by_stmt_a, evidence=evidence)
+        # model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.references])
 
     # Now that the a's are declared, go check on the b's.
     for pc in p_connections.connections:
@@ -105,7 +110,11 @@ def generate_model(filename, title):
             regulation_triple = (mechanism_uri, URIRef(expand_uri(pc.relation)), regulated_activity_uri)
             model.writer.emit(*regulation_triple)
             regulation_axiom = model.writer.emit_axiom(*regulation_triple)
-            model.add_evidence(regulation_axiom, "EXP", ["PMID:" + pmid for pmid in pc.references])
+            if pc.annotator:
+                contributors = [pc.annotator]
+            evidence = GoCamEvidence(EXP_ECO_CODE, ["PMID:" + pmid for pmid in pc.references],
+                                     contributors=contributors)
+            model.add_evidence(regulation_axiom, evidence=evidence)
 
     print(skipped_count, "causal statements skipped")
     print(len(p_connections.connections), "pathway_connections at finish")

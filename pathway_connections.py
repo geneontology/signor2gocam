@@ -26,7 +26,7 @@ class MechanismToGoMappingSet:
         self.mappings = []
         if mapping_file:
             with open(mapping_file) as mf:
-                mappings = yaml.load(mf)
+                mappings = yaml.safe_load(mf)
             for m in mappings:
                 self.mappings.append(MechanismToGoMapping(
                     mechanism=m["MECHANISM"],
@@ -42,9 +42,15 @@ class MechanismToGoMappingSet:
 
 
 class AnnotatorOrcidMapping:
-    def __init__(self, annotator_name, orcid):
+    def __init__(self, annotator_name, orcid: str):
         self.annotator_name = annotator_name
         self.orcid = orcid
+
+    def full_orcid_uri(self):
+        orcid_prefix = "http://orcid.org/"
+        if self.orcid.startswith(orcid_prefix):
+            return self.orcid
+        return orcid_prefix + self.orcid
 
 class AnnotatorOrcidMappingSet:
     def __init__(self, file=None):
@@ -61,7 +67,7 @@ class AnnotatorOrcidMappingSet:
     def orcid_by_name(self, annotator_name):
         for m in self.mappings:
             if m.annotator_name == annotator_name:
-                return m.orcid
+                return m.full_orcid_uri()
 
 # TODO: Refactor `PathwayConnection`
 # * Connect causal statements together in networkx graph
@@ -94,6 +100,7 @@ class PathwayConnection:
             "term": None
         }
 
+        self.annotator = None
         if annotator:
             self.annotator = self.ANNOTATOR_ORCID_MAPPING.orcid_by_name(annotator)
 
@@ -247,9 +254,9 @@ def upper_first(iterator):
     return itertools.chain([next(iterator).upper()], iterator)
 
 
-class PathwayConnectionSet():
+class PathwayConnectionSet:
     def __init__(self):
-        self.connections = []
+        self.connections: List[PathwayConnection] = []
 
     @staticmethod
     def parse_file(filename):
@@ -273,8 +280,7 @@ class PathwayConnectionSet():
 
         return pc_set
 
-
-    def add(self, pathway_connection):
+    def add(self, pathway_connection: PathwayConnection):
         existing_connection = self.find(pathway_connection)
         if existing_connection:
             # Causal statement already exists so just add reference
@@ -282,13 +288,13 @@ class PathwayConnectionSet():
         else:
             self.connections.append(pathway_connection)
 
-    def contains(self, pathway_connection, check_ref=False):
+    def contains(self, pathway_connection: PathwayConnection, check_ref=False):
         for connection in self.connections:
             if connection.equals(pathway_connection, check_ref=check_ref):
                 return True
         return False
 
-    def find(self, pathway_connection, check_ref=False):
+    def find(self, pathway_connection: PathwayConnection, check_ref=False):
         for connection in self.connections:
             if connection.equals(pathway_connection, check_ref=check_ref):
                 return connection

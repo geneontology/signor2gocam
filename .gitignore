@@ -1,0 +1,4 @@
+env/
+__pycache__/
+downloaded_data/
+models/

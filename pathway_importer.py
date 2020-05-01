@@ -15,7 +15,7 @@ EXP_ECO_CODE = "ECO:0000269"
 parser = argparse.ArgumentParser()
 parser.add_argument('-f', "--filename", type=str, required=True,
                     help="Input filename of SIGNOR pathway data")
-parser.add_argument('-t', "--model_title",
+parser.add_argument('-t', "--model_title", nargs='+',
                     help="Model title. Defaults to --outfile value.")
 parser.add_argument('-o', "--outfile", type=str, required=True,
                     help="Output filename of generated model")
@@ -144,7 +144,7 @@ def main():
     args = parser.parse_args()
 
     if args.model_title:
-        model_title = args.model_title
+        model_title = " ".join(args.model_title)
     else:
         model_title = args.outfile
     

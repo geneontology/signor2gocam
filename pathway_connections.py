@@ -78,13 +78,16 @@ class AnnotatorOrcidMappingSet:
 class PathwayConnection:
     MECHANISM_GO_MAPPING = MechanismToGoMappingSet("metadata/signor_mechanism_go_mapping.yaml")
     ANNOTATOR_ORCID_MAPPING = AnnotatorOrcidMappingSet("metadata/annotator_orcid.tsv")
-    def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool, relation, references: list, annotator, linenum=None):
+
+    def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool,
+                 relation, references: list, annotator, date: str = None, linenum=None):
         self.entity_a = entity_a
         self.entity_b = entity_b
         self.effect = effect
         self.direct = direct
         self.relation = relation
         self.references = references
+        self.date = date
         self.linenum = linenum
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"

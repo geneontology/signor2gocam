@@ -5,6 +5,7 @@ from rdflib.namespace import Namespace, OWL
 from prefixcommons.curie_util import expand_uri
 from pathway_connections import PathwayConnectionSet
 import argparse
+import datetime
 
 ro = OboRO()
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
@@ -81,11 +82,14 @@ def generate_model(filename, title):
         pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
         # Emit mechanism -enabled_by -> entity_a
         pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.entity_a.uri)
+        date = pc.date
+        if date is None:
+            date = str(datetime.date.today())
         contributors = []
         if pc.annotator:
             contributors = [pc.annotator]
         evidence = GoCamEvidence(EXP_ECO_CODE, ["PMID:" + pmid for pmid in pc.references],
-                                 contributors=contributors)
+                                 date=date, contributors=contributors)
         axiom_a = model.add_axiom(pc.enabled_by_stmt_a, evidence=evidence)
         # model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.references])
 
@@ -110,10 +114,13 @@ def generate_model(filename, title):
             regulation_triple = (mechanism_uri, URIRef(expand_uri(pc.relation)), regulated_activity_uri)
             model.writer.emit(*regulation_triple)
             regulation_axiom = model.writer.emit_axiom(*regulation_triple)
+            date = pc.date
+            if date is None:
+                date = str(datetime.date.today())
             if pc.annotator:
                 contributors = [pc.annotator]
             evidence = GoCamEvidence(EXP_ECO_CODE, ["PMID:" + pmid for pmid in pc.references],
-                                     contributors=contributors)
+                                     date=date, contributors=contributors)
             model.add_evidence(regulation_axiom, evidence=evidence)
 
     print(skipped_count, "causal statements skipped")

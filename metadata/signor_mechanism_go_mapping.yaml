@@ -1,7 +1,7 @@
 -
   MECHANISM: acetylation
   MI_ID: MI:0192
-  GO_ID: GO:0016407  # acetyltransferase activity
+  GO_ID: GO:0034212  # peptide N-acetyltransferase activity
   RELATION: RO:0002304  # causally upstream of, positive effect
 -
   MECHANISM: binding
@@ -76,12 +76,12 @@
 -
   MECHANISM: hydroxylation
   MI_ID: MI:0210
-  GO_ID: GO:0016491
+  GO_ID: GO:0036140 # peptidyl-asparagine 3-dioxygenase activity
   RELATION:
 -
   MECHANISM: lipidation
   MI_ID: 
-  GO_ID: GO:0016747
+  GO_ID: GO:0120014 # phospholipid transfer activity
   RELATION:
 -
   MECHANISM: methylation
@@ -101,7 +101,7 @@
 -
   MECHANISM: palmitoylation
   MI_ID: MI:0216
-  GO_ID: GO:0016409
+  GO_ID: GO:0018031
   RELATION:
 -
   MECHANISM: phosphorylation

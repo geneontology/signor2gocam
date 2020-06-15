@@ -159,11 +159,6 @@
   GO_ID: GO:0003730
   RELATION:
 -
-  MECHANISM: trimethylation
-  MI_ID: MI:0213
-  GO_ID: GO:0008276
-  RELATION:
--
   MECHANISM: tyrosination
   MI_ID: MI:2273
   GO_ID: GO:0004835

@@ -169,6 +169,7 @@ class PathwayConnection:
 
     def gocam_evidence(self, eco_code):
         date = self.date
+        contributors = []
         if date is None:
             date = str(datetime.date.today())
         if self.annotator:

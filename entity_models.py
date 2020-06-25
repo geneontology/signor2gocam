@@ -1,3 +1,4 @@
+import abc
 from gocamgen.gocamgen import GoCamModel
 from naming_conventions import NamingConvention
 from rdflib.term import URIRef, Literal
@@ -30,14 +31,33 @@ class SignorEntity:
     def __str__(self):
         return f"{self.id} - {self.name}"
 
+    @abc.abstractmethod
     def declare(self, model: GoCamModel):
-        pass
+        return
 
 
 class SignorProtein(SignorEntity):
     def declare(self, model):
         self.uri = model.declare_individual(self.full_id())
         return self.uri
+
+
+class SignorMicroRNA(SignorEntity):
+    def declare(self, model):
+        self.uri = model.declare_individual(self.full_id())
+        return self.uri
+
+
+class SignorSmallMolecule(SignorEntity):
+    def declare(self, model):
+        self.uri = model.declare_individual(self.full_id())
+        return self.uri
+
+    def full_id(self):
+        if self.id.startswith("CHEBI:"):
+            return self.id
+        else:
+            return f"CHEBI:{self.id}"
 
 
 class SignorGrouping(SignorEntity):

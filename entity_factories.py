@@ -1,7 +1,7 @@
 import csv
 import os
 from naming_conventions import NamingConvention
-from entity_models import SignorEntity, SignorProtein, SignorComplex, SignorProteinFamily
+from entity_models import SignorEntity, SignorProtein, SignorMicroRNA, SignorComplex, SignorProteinFamily, SignorSmallMolecule
 from download import SignorDownloader
 
 
@@ -62,16 +62,19 @@ class SignorProteinFamilyFactory(SignorGroupingFactory):
 class SignorEntityFactory:
     complex_factory = SignorComplexFactory()
     family_factory = SignorProteinFamilyFactory()
+    entity_type_map = {
+        'complex': SignorComplex,
+        'protein': SignorProtein,
+        'mirna': SignorMicroRNA,
+        'smallmolecule': SignorSmallMolecule
+    }
 
     @classmethod
-    def determine_entity(cls, entity_id: str, entity_name: str) -> SignorEntity:
+    def determine_entity(cls, entity_id: str, entity_name: str, entity_type: str) -> SignorEntity:
         if NamingConvention.is_complex(entity_id):
             return SignorEntityFactory.complex_from_id(entity_id)
-        # TODO: What about families?
-        # elif NamingConvention.is_family(entity_id):
-        #     return None
         else:
-            return SignorProtein(entity_id, entity_name)
+            return cls.entity_type_map[entity_type](entity_id, entity_name)
 
     @classmethod
     def complex_from_id(cls, entity_id: str):

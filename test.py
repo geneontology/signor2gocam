@@ -4,8 +4,9 @@ import csv
 from rdflib import Graph
 from rdflib.plugins.sparql import prepareQuery
 from gocamgen.gocamgen import GoCamModel
-from pathway_connections import MechanismToGoMappingSet
-from pathway_importer import generate_model
+from pathway_connections import MechanismToGoMappingSet, PathwayConnectionSet
+from pathway_importer import generate_model, pathway_connection_filter_protein_binding
+from util import OntologyTerm
 
 M_FILE = "metadata/signor_mechanism_go_mapping.yaml"
 
@@ -43,6 +44,24 @@ class TestSignor2Gocam(unittest.TestCase):
                     ?entity_b rdf:type UniProtKB:{entity_b} .
                     ?activity {enabled_by} ?s .
                     ?activity {reg_relation} ?unknown .
+                    ?unknown {enabled_by} ?entity_b
+                }}
+                """
+        return query
+
+    def gen_intermediary_bp_stmt_query(self, entity_a, mechanism, intermediary_bp, intermediary_relation,
+                                       entity_b, reg_relation):
+        enabled_by = "RO:0002333"
+        query = f"""
+                SELECT ?activity ?unknown
+                WHERE {{ 
+                    ?s rdf:type UniProtKB:{entity_a} .
+                    ?activity rdf:type {mechanism} .
+                    ?int_bp rdf:type {intermediary_bp} .
+                    ?entity_b rdf:type UniProtKB:{entity_b} .
+                    ?activity {enabled_by} ?s .
+                    ?activity {intermediary_relation} ?int_bp .
+                    ?int_bp {reg_relation} ?unknown .
                     ?unknown {enabled_by} ?entity_b
                 }}
                 """
@@ -115,18 +134,36 @@ class TestSignor2Gocam(unittest.TestCase):
         print(len(resp), "matches found")
         self.assertEqual(len(resp), 2)
 
-        # Should only be one: Q00987 <-enabled_by- GO:0061630 -regulates-> MF -enabled_by-> P04637
-        resp = self.run_query(model, self.gen_causal_stmt_query(entity_a="Q00987",
-                                                                mechanism="GO:0061630",
-                                                                entity_b="P04637",
-                                                                reg_relation="RO:0002630"
-                                                                )
+        # TODO: Now check how many instances of most_prominent_entity are in model. Should this == input count?
+        print(most_prominent_entity, entity_counts[most_prominent_entity])
+
+    def test_intermediary_bp_patterns(self):
+        stmt_file = "resources/test/SIGNOR-LBC.tsv"
+        model = generate_model(stmt_file, "SIGNOR - Luminal Breast Cancer")
+
+        # Should only be one: Q00987 <-enabled_by- GO:0061630 -regulates-> GO:0043161 -regulates-> MF -enabled_by-> P04637
+        resp = self.run_query(model, self.gen_intermediary_bp_stmt_query(entity_a="Q00987",
+                                                                         mechanism="GO:0061630",
+                                                                         intermediary_bp="GO:0043161",
+                                                                         intermediary_relation=OntologyTerm.POSITIVELY_REGULATES.value,
+                                                                         entity_b="P04637",
+                                                                         reg_relation=OntologyTerm.NEGATIVELY_REGULATES.value
+                                                                        )
                               )
         print(len(resp), "matches found")
         self.assertEqual(len(resp), 1)
 
-        # TODO: Now check how many instances of most_prominent_entity are in model. Should this == input count?
-        print(most_prominent_entity, entity_counts[most_prominent_entity])
+    def test_pathway_connection_filter_protein_binding(self):
+        stmt_file = "resources/test/SIGNOR-LBC-protein_binding.tsv"
+        p_connections = PathwayConnectionSet.parse_file(stmt_file)
+        p_connections = pathway_connection_filter_protein_binding(p_connections)
+        self.assertEqual(1, 1)
+
+    def test_small_molecule_patterns(self):
+        stmt_file = "resources/test/SIGNOR-smallmol.tsv"
+        model = generate_model(stmt_file, "SIGNOR - Small molecule test")
+
+        self.assertEqual(1, 1)
 
 
 if __name__ == '__main__':

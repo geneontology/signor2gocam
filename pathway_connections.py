@@ -1,12 +1,16 @@
 import csv
 import itertools
 import yaml
+import datetime
 from typing import List
+from copy import copy
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
 from entity_factories import SignorEntityFactory
 from entity_models import SignorEntity
+from gocamgen.gocamgen import GoCamEvidence
+from util import OntologyTerm
 
 ro = OboRO()
 
@@ -71,7 +75,7 @@ class AnnotatorOrcidMappingSet:
             if m.annotator_name == annotator_name:
                 return m.full_orcid_uri()
 
-# TODO: Refactor `PathwayConnection`
+
 # * Connect causal statements together in networkx graph
 # 	* This will reduce need to query RDF triples
 # * Then write out to rdflib
@@ -80,25 +84,26 @@ class PathwayConnection:
     ANNOTATOR_ORCID_MAPPING = AnnotatorOrcidMappingSet("metadata/annotator_orcid.tsv")
 
     def __init__(self, entity_a: SignorEntity, entity_b: SignorEntity, mechanism, effect, direct: bool,
-                 relation, references: list, annotator, date: str = None, linenum=None):
+                 references: list, annotator, relation: OntologyTerm = None, date: str = None, linenum=None):
         self.entity_a = entity_a
         self.entity_b = entity_b
         self.effect = effect
         self.direct = direct
-        self.relation = relation
         self.references = references
         self.date = date
         self.linenum = linenum
         # by default mechanism = molecular function
         mechanism_term = "GO:0003674"
-        if self.direct:
-            if mechanism:
-                mechanism_term = self.MECHANISM_GO_MAPPING.go_id_by_mechanism(mechanism)
+        if mechanism:
+            mechanism_term = self.MECHANISM_GO_MAPPING.go_id_by_mechanism(mechanism)
         self.mechanism = {
             "name": mechanism,
             "uri": None,
             "term": mechanism_term
         }
+        self.relation = relation
+        if self.relation is None:
+            self.relation = self.determine_relation()
         self.regulated_activity = {
             "name": None,
             "uri": None,
@@ -114,13 +119,12 @@ class PathwayConnection:
 
     @staticmethod
     def parse_line(line: dict, linenum: int=None):
-        entity_a = SignorEntityFactory.determine_entity(entity_id=line["IDA"], entity_name=line["ENTITYA"])
-        entity_b = SignorEntityFactory.determine_entity(entity_id=line["IDB"], entity_name=line["ENTITYB"])
+        entity_a = SignorEntityFactory.determine_entity(entity_id=line["IDA"], entity_name=line["ENTITYA"], entity_type=line["TYPEA"])
+        entity_b = SignorEntityFactory.determine_entity(entity_id=line["IDB"], entity_name=line["ENTITYB"], entity_type=line["TYPEB"])
 
         direct = False
         if line["DIRECT"] in ["YES", "t"]:
             direct = True
-        relation = PathwayConnection.determine_relation(effect=line["EFFECT"], direct=direct)
 
         pc = PathwayConnection(
             entity_a=entity_a,
@@ -128,35 +132,49 @@ class PathwayConnection:
             mechanism=line["MECHANISM"],
             effect=line["EFFECT"],
             direct=direct,
-            relation=relation,
             references=[line["PMID"]],
             annotator=line["ANNOTATOR"],
             linenum=linenum
         )
         return pc
 
-    @classmethod
-    def determine_relation(cls, effect: str, direct: bool):
+    def determine_relation(self):
         # If up-regulates (including any variants of this), use RO:0002629 if DIRECT,
         # and use RO:0002213 if not DIRECT or UNKNOWN
         relation = None
-        if effect.startswith("up-regulates"):
-            if direct:
-                relation = "RO:0002629"
+        if self.effect.startswith("up-regulates"):
+            if self.mechanism["term"] == "GO:0003674":
+                relation = OntologyTerm.CAUSALLY_UPSTREAM_OF_POSITIVE_EFFECT
+            elif self.direct:
+                relation = OntologyTerm.DIRECTLY_POSITIVELY_REGULATES
             else:
-                relation = "RO:0002213"
+                relation = OntologyTerm.POSITIVELY_REGULATES
         # If down-regulates (including any variants of this), use RO:0002630 if DIRECT,
         # and use RO:0002212 if not DIRECT or UNKNOWN
-        elif effect.startswith("down-regulates"):
-            if direct:
-                relation = "RO:0002630"
+        elif self.effect.startswith("down-regulates"):
+            if self.mechanism["term"] == "GO:0003674":
+                relation = OntologyTerm.CAUSALLY_UPSTREAM_OF_NEGATIVE_EFFECT
+            elif self.direct:
+                relation = OntologyTerm.DIRECTLY_NEGATIVELY_REGULATES
             else:
-                relation = "RO:0002212"
+                relation = OntologyTerm.NEGATIVELY_REGULATES
         # If unknown, use RO:0002211 (regulates)
-        elif effect in ["unknown", ""]:
-            relation = "RO:0002211"
+        elif self.effect in ["unknown", ""]:
+            if self.mechanism["term"] == "GO:0003674":
+                relation = OntologyTerm.CAUSALLY_UPSTREAM_OF
+            else:
+                relation = OntologyTerm.REGULATES
 
         return relation
+
+    def gocam_evidence(self, eco_code):
+        date = self.date
+        if date is None:
+            date = str(datetime.date.today())
+        if self.annotator:
+            contributors = [self.annotator]
+        return GoCamEvidence(eco_code, ["PMID:" + pmid for pmid in self.references],
+                                 date=date, contributors=contributors)
 
     def __str__(self):
         return f"[UniProtKB:{self.id_a()}] <- enabled_by – [{self.mechanism['term']}] – [{self.relation}]-> [{self.regulated_activity['term']}] – enabled_by-> [UniProtKB:{self.id_b()}]"
@@ -274,7 +292,7 @@ class PathwayConnectionSet:
                 for line in data:
                     linenum += 1
 
-                    acceptable_types = ['protein', 'complex']
+                    acceptable_types = SignorEntityFactory.entity_type_map.keys()
                     if line["TYPEA"] not in acceptable_types or \
                        line["TYPEB"] not in acceptable_types or \
                        line["EFFECT"] == "form complex":
@@ -331,6 +349,13 @@ class PathwayConnectionSet:
         for pc in self.connections:
             if pc.mechanism["term"] == term:
                 return pc
+
+    def remove_connection(self, pathway_connection):
+        new_connections = []
+        for pc in self.connections:
+            if not pc.equals(pathway_connection):
+                new_connections.append(pc)
+        self.connections = new_connections
 
     def remove_list(self, pc_list):
         new_connection_list = self.connections

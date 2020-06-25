@@ -4,6 +4,8 @@ class NamingConvention():
     def full_id(id):
         if NamingConvention.is_complex(id):
             return id
+        elif id.startswith("UniProtKB:"):
+            return id
         return "UniProtKB:" + id
 
     @staticmethod

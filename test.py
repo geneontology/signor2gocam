@@ -81,7 +81,7 @@ class TestSignor2Gocam(unittest.TestCase):
         entity_a = TestSignor2Gocam.mod_prefix_entity(entity_a)
         entity_b = TestSignor2Gocam.mod_prefix_entity(entity_b)
         query = f"""
-                SELECT ?s ?activity
+                SELECT ?s ?activity ?entity_b
                 WHERE {{ 
                     ?s rdf:type {entity_a} .
                     ?activity rdf:type {mechanism} .
@@ -254,7 +254,24 @@ class TestSignor2Gocam(unittest.TestCase):
                                                                      )
                               )
         # There will be two of these
-        self.assertEqual(len(resp), 2)
+        self.assertEqual(len(resp), 1)
+        has_input_smallmol_uri = resp.bindings[0]['entity_b']
+
+        # -has_input->smallmolecule and -has_output->smallmolecule should use same smallmolecule instance
+        # From SIGNOR-GBM
+        # P60484 (PTEN) down-regulates quantity CHEBI:16618 (1-phosphatidyl-1D-myo-inositol 3,4,5-trisphosphate)
+        # P42336 (PIK3CA) up-regulates quantity CHEBI:16618
+        resp = self.run_query(model, self.gen_participant_stmt_query(entity_a="P42336",
+                                                                     mechanism="GO:0003824",
+                                                                     entity_b="CHEBI:16618",
+                                                                     participant_relation=OntologyTerm.HAS_OUTPUT.value
+                                                                     )
+                              )
+        self.assertEqual(len(resp), 1)
+        # entity_b URI is the small_mol URI and should be the same for the input and output query results
+        self.assertEqual(has_input_smallmol_uri, resp.bindings[0]['entity_b'])
+
+        # ProteinA-has_input->smallmolA and ProteinA-has_output->smallmolB should use same activity instance
 
 
 if __name__ == '__main__':

@@ -50,7 +50,12 @@ class SignorMicroRNA(SignorEntity):
 
 class SignorSmallMolecule(SignorEntity):
     def declare(self, model):
-        self.uri = model.declare_individual(self.full_id())
+        # First, check if instance already exists
+        existing_uris = model.uri_list_for_individual(self.full_id())
+        if len(existing_uris) > 0:
+            self.uri = existing_uris[0]
+        else:
+            self.uri = model.declare_individual(self.full_id())
         return self.uri
 
     def full_id(self):

@@ -81,7 +81,6 @@ def generate_model(filename, title):
 
     total_pcs = len(p_connections.connections)
     print(total_pcs, "initial pathway_connections")
-    skipped_count = 0
 
     p_connections = pathway_connection_filter_protein_binding(p_connections)
 
@@ -126,8 +125,9 @@ def generate_model(filename, title):
                     participant_relation = HAS_OUTPUT
             # mechanism -has_input/output-> entity_b
             has_input_triple = (mechanism_uri, participant_relation, bpc.entity_a.uri)
-            model.writer.emit(*has_input_triple)
-            has_input_axiom = model.writer.emit_axiom(*has_input_triple)
+            if len(model.triples_by_ids(*has_input_triple)) == 0:
+                model.writer.emit(*has_input_triple)
+            has_input_axiom = model.find_or_create_axiom(*has_input_triple)
             model.add_evidence(has_input_axiom, evidence=evidence)
             if is_small_mol_catalysis:
                 # Skip adding causal relation
@@ -185,7 +185,6 @@ def generate_model(filename, title):
             regulation_axiom = model.writer.emit_axiom(*regulation_triple)
             model.add_evidence(regulation_axiom, evidence=evidence)
 
-    print(skipped_count, "causal statements skipped")
     print(len(p_connections.connections), "pathway_connections at finish")
 
     grouped = map(lambda x:x.id_a, p_connections.connections)

@@ -46,6 +46,14 @@ class MechanismToGoMappingSet:
         # Fallback on root MF
         return "GO:0003674"
 
+    def acceptable_mechanisms(self):
+        mechanisms = set()
+        for m in self.mappings:
+            if m.go_id:
+                mechanisms.add(m.mechanism)
+        mechanisms.add("")  # Unspecified mechanisms are OK
+        return mechanisms
+
 
 class AnnotatorOrcidMapping:
     def __init__(self, annotator_name, orcid: str):
@@ -290,17 +298,24 @@ class PathwayConnectionSet:
         if filename:
             with open(filename, "r") as f:
                 data = list(csv.DictReader(upper_first(f), delimiter="\t"))
+                total_stmts = len(data)
+                converted_count = 0
+                acceptable_mechanisms = PathwayConnection.MECHANISM_GO_MAPPING.acceptable_mechanisms()
                 for line in data:
                     linenum += 1
 
                     acceptable_types = SignorEntityFactory.entity_type_map.keys()
                     if line["TYPEA"] not in acceptable_types or \
                        line["TYPEB"] not in acceptable_types or \
+                       line["MECHANISM"] not in acceptable_mechanisms or \
                        line["EFFECT"] == "form complex":
                         continue
 
                     pc = PathwayConnection.parse_line(line, linenum=linenum)
                     pc_set.add(pc)
+                    converted_count += 1
+                print("Total statement count:", total_stmts)
+                print("Converted statement count", converted_count)
 
         return pc_set
 

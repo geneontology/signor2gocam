@@ -191,6 +191,19 @@ class PathwayConnection:
     def print(self):
         print(self)
 
+    def declare_a_to_mechanism(self, model, eco_code):
+        # Declare entity A and mechanism
+        self.declare_a(model)
+        if self.a_is_small_mol():
+            # Skip enabled_by stmt for small molecules
+            self.mechanism["uri"] = self.entity_a.uri  # Entity A is_activator
+            return
+        self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
+        # Emit mechanism -enabled_by -> entity_a
+        self.enabled_by_stmt_a = model.writer.emit(self.mechanism["uri"], ENABLED_BY, self.entity_a.uri)
+        evidence = self.gocam_evidence(eco_code)
+        return model.add_axiom(self.enabled_by_stmt_a, evidence=evidence)
+
     def declare_entities(self, model):
         self.declare_a(model)
         self.declare_b(model)
@@ -236,6 +249,16 @@ class PathwayConnection:
 
     def b_is_complex(self):
         return self._is_complex(self.entity_b)
+
+    @staticmethod
+    def _is_small_mol(entity: SignorEntity):
+        return entity.is_small_mol()
+
+    def a_is_small_mol(self):
+        return self._is_small_mol(self.entity_a)
+
+    def b_is_small_mol(self):
+        return self._is_small_mol(self.entity_b)
 
     def clone(self):
         new_connection = PathwayConnection(self.entity_a, self.entity_b, self.mechanism["name"], self.effect,

@@ -86,22 +86,8 @@ def generate_model(filename, title):
 
     # fill in regulated activities
     for pc in p_connections.connections:
-
-        # Declare entity A and mechanism
-        pc.declare_a(model)
-        pc.mechanism["uri"] = model.declare_individual(pc.mechanism["term"])
-        # Emit mechanism -enabled_by -> entity_a
-        pc.enabled_by_stmt_a = model.writer.emit(pc.mechanism["uri"], ENABLED_BY, pc.entity_a.uri)
-        date = pc.date
-        if date is None:
-            date = str(datetime.date.today())
-        contributors = []
-        if pc.annotator:
-            contributors = [pc.annotator]
-        evidence = GoCamEvidence(EXP_ECO_CODE, ["PMID:" + pmid for pmid in pc.references],
-                                 date=date, contributors=contributors)
-        axiom_a = model.add_axiom(pc.enabled_by_stmt_a, evidence=evidence)
-        # model.add_evidence(axiom_a, "EXP", ["PMID:" + pmid for pmid in pc.references])
+        # Setup
+        pc.declare_a_to_mechanism(model, EXP_ECO_CODE)
 
     # Now that the a's are declared, go check on the b's.
     for pc in p_connections.connections:
@@ -114,24 +100,30 @@ def generate_model(filename, title):
         regulatory_relation = pc.relation
         evidence = pc.gocam_evidence(EXP_ECO_CODE)
         if len(entity_b_pcs) == 0:
+            # BPC was likely filtered out due to BPC.entity B not being acceptable type (e.g. phenotype)
+            # Declare pc.entity B? A and B should be valid by this point
+            # A protein -> B complex
+            # A complex -> B phenotype
+            # Create and load new PC
             print("No downstream pathway_connections for", pc)
         for bpc in entity_b_pcs:
             participant_relation = HAS_INPUT
             is_small_mol_catalysis = False
             # catalytic activity
-            if pc.mechanism["term"] == "GO:0003824" and isinstance(pc.entity_b, SignorSmallMolecule):
+            if pc.mechanism["term"] == "GO:0003824" and pc.b_is_small_mol():
                 is_small_mol_catalysis = True
                 if pc.effect.startswith("up-regulates"):
                     participant_relation = HAS_OUTPUT
-            # mechanism -has_input/output-> entity_b
-            has_input_triple = (mechanism_uri, participant_relation, bpc.entity_a.uri)
-            if len(model.triples_by_ids(*has_input_triple)) == 0:
-                model.writer.emit(*has_input_triple)
-            has_input_axiom = model.find_or_create_axiom(*has_input_triple)
-            model.add_evidence(has_input_axiom, evidence=evidence)
-            if is_small_mol_catalysis:
-                # Skip adding causal relation
-                continue
+            if not pc.a_is_small_mol():
+                # mechanism -has_input/output-> entity_b
+                has_input_triple = (mechanism_uri, participant_relation, bpc.entity_a.uri)
+                if len(model.triples_by_ids(*has_input_triple)) == 0:
+                    model.writer.emit(*has_input_triple)
+                has_input_axiom = model.find_or_create_axiom(*has_input_triple)
+                model.add_evidence(has_input_axiom, evidence=evidence)
+                if is_small_mol_catalysis:
+                    # Skip adding causal relation
+                    continue
 
             # Add intermediary biological process for these regulatory mechanisms
             intermediary_bp = None

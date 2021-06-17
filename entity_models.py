@@ -23,6 +23,9 @@ class SignorEntity:
     def is_complex(self):
         return isinstance(self, SignorComplex)
 
+    def is_small_mol(self):
+        return isinstance(self, SignorSmallMolecule)
+
     def __eq__(self, other):
         if isinstance(other, SignorEntity):
             return self.id == other.id and self.name == other.name

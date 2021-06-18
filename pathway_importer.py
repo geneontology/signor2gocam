@@ -161,21 +161,18 @@ def generate_model(filename, title):
                 # mechanism -has_input-> entity_b
                 has_input_triple = (intermediary_bp_uri, HAS_INPUT, bpc.entity_a.uri)
                 model.writer.emit(*has_input_triple)
-                has_input_axiom = model.writer.emit_axiom(*has_input_triple)
-                model.add_evidence(has_input_axiom, evidence=evidence)
+                model.add_axiom(has_input_triple, evidence=evidence)
                 # downstream relation (intermediary_bp -?-> regulated_activity) is static for some of these
                 intermediary_triple = (mechanism_uri, URIRef(expand_uri(intermediary_relation.value)), intermediary_bp_uri)
                 model.writer.emit(*intermediary_triple)
-                intermediary_axiom = model.writer.emit_axiom(*intermediary_triple)
-                model.add_evidence(intermediary_axiom, evidence=evidence)
+                model.add_axiom(intermediary_triple, evidence=evidence)
                 mechanism_uri, regulatory_relation = intermediary_bp_uri, downstream_relation
 
             # mechanism -regulates-> regulated_activity OR mechanism -regulates-> intermediary BP -regulates-> regulated_activity
             regulated_activity_uri = bpc.mechanism["uri"]
             regulation_triple = (mechanism_uri, URIRef(expand_uri(regulatory_relation.value)), regulated_activity_uri)
             model.writer.emit(*regulation_triple)
-            regulation_axiom = model.writer.emit_axiom(*regulation_triple)
-            model.add_evidence(regulation_axiom, evidence=evidence)
+            model.add_axiom(regulation_triple, evidence=evidence)
 
     print(len(p_connections.connections), "pathway_connections at finish")
 

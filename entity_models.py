@@ -1,5 +1,5 @@
 import abc
-from gocamgen.gocamgen import GoCamModel
+from ontobio.rdfgen.gocamgen import gocamgen
 from naming_conventions import NamingConvention
 from rdflib.term import URIRef, Literal
 from rdflib.namespace import RDFS
@@ -35,7 +35,7 @@ class SignorEntity:
         return f"{self.id} - {self.name}"
 
     @abc.abstractmethod
-    def declare(self, model: GoCamModel):
+    def declare(self, model: gocamgen.GoCamModel):
         return
 
 

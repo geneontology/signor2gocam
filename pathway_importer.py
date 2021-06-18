@@ -1,4 +1,4 @@
-from gocamgen.gocamgen import GoCamModel, GoCamEvidence
+from ontobio.rdfgen.gocamgen import gocamgen
 from ontobio.vocabulary.relations import OboRO
 from rdflib.term import URIRef
 from rdflib.namespace import Namespace, OWL
@@ -74,7 +74,7 @@ def pathway_connection_filter_protein_binding(p_connections):
 
 
 def generate_model(filename, title):
-    model = GoCamModel(title)
+    model = gocamgen.GoCamModel(title)
 
     p_connections = PathwayConnectionSet.parse_file(filename)
     linenum = 1

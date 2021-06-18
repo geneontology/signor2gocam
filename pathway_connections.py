@@ -9,7 +9,7 @@ from rdflib.term import URIRef
 from prefixcommons.curie_util import expand_uri
 from entity_factories import SignorEntityFactory
 from entity_models import SignorEntity
-from gocamgen.gocamgen import GoCamEvidence
+from ontobio.rdfgen.gocamgen import gocamgen
 from util import OntologyTerm
 
 ro = OboRO()
@@ -182,7 +182,7 @@ class PathwayConnection:
             date = str(datetime.date.today())
         if self.annotator:
             contributors = [self.annotator]
-        return GoCamEvidence(eco_code, ["PMID:" + pmid for pmid in self.references],
+        return gocamgen.GoCamEvidence(eco_code, ["PMID:" + pmid for pmid in self.references],
                                  date=date, contributors=contributors)
 
     def __str__(self):
@@ -191,7 +191,7 @@ class PathwayConnection:
     def print(self):
         print(self)
 
-    def declare_a_to_mechanism(self, model, eco_code):
+    def declare_a_to_mechanism(self, model: gocamgen.GoCamModel, eco_code):
         # Declare entity A and mechanism
         self.declare_a(model)
         if self.a_is_small_mol():

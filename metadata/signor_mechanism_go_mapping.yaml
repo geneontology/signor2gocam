@@ -6,7 +6,7 @@
 -
   MECHANISM: binding
   MI_ID: MI:0915
-  GO_ID: GO:0005515  # protein binding
+  GO_ID: GO:0098772  # molecular function regulator
   RELATION: RO:0002629  # directly positively regulates
 -
   MECHANISM: catalytic activity

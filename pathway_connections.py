@@ -15,6 +15,7 @@ from util import OntologyTerm
 ro = OboRO()
 
 ENABLED_BY = URIRef(expand_uri(ro.enabled_by))
+HAS_INPUT = URIRef(expand_uri(ro.has_input))
 
 
 class MechanismToGoMapping:
@@ -194,13 +195,10 @@ class PathwayConnection:
     def declare_a_to_mechanism(self, model: gocamgen.GoCamModel, eco_code):
         # Declare entity A and mechanism
         self.declare_a(model)
-        if self.a_is_small_mol():
-            # Skip enabled_by stmt for small molecules
-            self.mechanism["uri"] = self.entity_a.uri  # Entity A is_activator
-            return
+        relation = HAS_INPUT if self.a_is_small_mol() else ENABLED_BY
         self.mechanism["uri"] = model.declare_individual(self.mechanism["term"])
         # Emit mechanism -enabled_by -> entity_a
-        self.enabled_by_stmt_a = model.writer.emit(self.mechanism["uri"], ENABLED_BY, self.entity_a.uri)
+        self.enabled_by_stmt_a = model.writer.emit(self.mechanism["uri"], relation, self.entity_a.uri)
         evidence = self.gocam_evidence(eco_code)
         return model.add_axiom(self.enabled_by_stmt_a, evidence=evidence)
 
